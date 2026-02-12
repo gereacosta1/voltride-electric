@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --bg: #0B0F14;
+  --panel: #111827;
+  --panel2: #0f172a;
+  --text: #E5E7EB;
+  --muted: #9CA3AF;
+
+  --magenta: #D946EF;
+  --lime: #A3E635;
+  --cyan: #22D3EE;
+
+  --ring: rgba(217,70,239,.35);
+}
+
+html, body { height: 100%; }
+body{
+  background: radial-gradient(900px 500px at 20% 10%, rgba(217,70,239,.16), transparent 55%),
+              radial-gradient(700px 500px at 85% 30%, rgba(163,230,53,.14), transparent 60%),
+              var(--bg);
+  color: var(--text);
+}

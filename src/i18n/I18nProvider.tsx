@@ -10,7 +10,6 @@ const Ctx = createContext<I18n | null>(null);
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const value = useMemo<I18n>(() => {
     const t = (k: string) => {
-      // fallback rápido: devuelve keys “amigables”
       const map: Record<string, string> = {
         "cart.title": "Cart",
         "cart.total": "Total",

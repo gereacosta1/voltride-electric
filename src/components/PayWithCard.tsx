@@ -1,4 +1,3 @@
-// src/components/PayWithCard.tsx
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { startCardCheckout } from "../lib/cardCheckouts";
@@ -36,8 +35,8 @@ export default function PayWithCard() {
           setLoading(false);
         }
       }}
-      className="btn btn-primary inline-flex w-full items-center justify-center gap-2 rounded-xl
-                 bg-white text-black px-4 py-3 text-sm font-semibold
+      className="inline-flex w-full items-center justify-center gap-2 rounded-xl
+                 bg-white text-black px-4 py-3 text-sm font-extrabold
                  hover:brightness-95 transition
                  disabled:opacity-60 disabled:cursor-not-allowed"
     >

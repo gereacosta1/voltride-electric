@@ -1,4 +1,5 @@
-//src/data/products.ts
+export type ProductCategory = "scooters" | "ebikes" | "audio";
+
 export type Product = {
   id: number;
   name: string;
@@ -14,6 +15,7 @@ export type Product = {
   features?: string[];
   mileage?: number;
   gallery?: string[];
+  category?: ProductCategory; // <-- agregado
 };
 
 export const products: Product[] = [
@@ -29,6 +31,7 @@ export const products: Product[] = [
     condition: "Nueva",
     engine: "Electric",
     featured: true,
+    category: "scooters",
     description:
       "Scooter eléctrico urbano, perfecto para moverte por Miami con cero emisiones y bajo mantenimiento.",
     features: ["Motor eléctrico", "Ligero y ágil", "Batería de alta capacidad"],
@@ -43,6 +46,7 @@ export const products: Product[] = [
     image: "/IMG/ELECTRIC SCOOTER.jpeg",
     condition: "Nueva",
     engine: "Electric",
+    category: "scooters",
     description:
       "Scooter eléctrico robusto con gran autonomía, ideal para uso diario y recorridos más largos.",
     features: ["Motor eléctrico", "Suspensión confortable", "Autonomía extendida"],
@@ -57,6 +61,7 @@ export const products: Product[] = [
     image: "/IMG/electricBike3.jpeg",
     condition: "Nueva",
     engine: "Electric",
+    category: "scooters",
     description:
       "Modelo compacto y ligero, pensado para la ciudad. Fácil de manejar y de guardar.",
     features: ["Motor eléctrico", "Diseño compacto", "Batería removible"],
@@ -72,6 +77,7 @@ export const products: Product[] = [
     condition: "Nueva",
     engine: "Electric",
     featured: true,
+    category: "scooters",
     description: "Scooter eléctrico con diseño moderno y cómodo, ideal para el día a día.",
     features: ["Motor eléctrico", "Ligero y ágil", "Batería de alta capacidad"],
   },
@@ -85,6 +91,7 @@ export const products: Product[] = [
     image: "/IMG/scooter-electrico-hiboy.jpg",
     condition: "Nueva",
     engine: "Electric",
+    category: "scooters",
     description:
       "Opción accesible para comenzar en la movilidad eléctrica, perfecta para trayectos cortos.",
     features: ["Motor eléctrico", "Plegable", "Freno regenerativo"],
@@ -102,6 +109,7 @@ export const products: Product[] = [
     condition: "Nueva",
     engine: "Electric",
     featured: true,
+    category: "ebikes",
     description: "E-bike estilo urbano, ideal para movilidad diaria.",
     features: ["Motor eléctrico", "Batería de alta capacidad", "Diseño compacto"],
   },
@@ -115,6 +123,7 @@ export const products: Product[] = [
     image: "/IMG/e-bike-rambo-2850.jpeg",
     condition: "Nueva",
     engine: "Electric",
+    category: "ebikes",
     description: "E-bike con ruedas anchas y estructura robusta.",
     features: ["Motor eléctrico", "Suspensión confortable", "Autonomía extendida"],
   },
@@ -129,11 +138,12 @@ export const products: Product[] = [
     condition: "Nueva",
     engine: "Electric",
     featured: true,
+    category: "ebikes",
     description: "E-bike estilo scrambler, potente y cómoda.",
     features: ["Motor eléctrico de alta potencia", "Batería de alta capacidad", "Diseño robusto"],
   },
 
-  // --- JBL ---
+  // --- JBL / AUDIO ---
   {
     id: 21,
     name: "JBL Charge 4",
@@ -144,6 +154,7 @@ export const products: Product[] = [
     image: "/IMG/jbl-charge-4.jpeg",
     condition: "Nueva",
     featured: true,
+    category: "audio",
     description:
       "Parlante JBL Charge 4 con batería de larga duración y sonido potente para interior y exterior.",
     features: ["Bluetooth", "Resistente al agua", "Batería recargable"],
@@ -157,6 +168,7 @@ export const products: Product[] = [
     price: 50,
     image: "/IMG/jbl-go-4.jpeg",
     condition: "Nueva",
+    category: "audio",
     description: "Parlante ultra compacto para llevar en el bolsillo. Ideal para uso diario.",
     features: ["Bluetooth", "Tamaño compacto", "Hasta 8h de batería"],
   },
@@ -170,6 +182,7 @@ export const products: Product[] = [
     image: "/IMG/jbl-party-box.jpeg",
     condition: "Nueva",
     featured: true,
+    category: "audio",
     description:
       "JBL Party Box con luces LED y sonido de alta potencia, perfecto para eventos y fiestas.",
     features: ["Alta potencia", "Luces LED", "Entradas para micrófono"],
@@ -183,6 +196,7 @@ export const products: Product[] = [
     price: 200,
     image: "/IMG/jbl-flip-6.jpeg",
     condition: "Nueva",
+    category: "audio",
     description:
       "Parlante JBL Flip 6 resistente al agua, con sonido equilibrado y fácil de transportar.",
     features: ["Bluetooth", "Resistente al agua", "Diseño portátil"],

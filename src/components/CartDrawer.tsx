@@ -1,241 +1,182 @@
-// src/components/CartDrawer.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { useCart } from "../context/CartContext";
 import PayWithAffirm from "./PayWithAffirm";
 import PayWithCard from "./PayWithCard";
 
+function money(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
+}
+
+function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function MinusIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function XIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
 export default function CartDrawer() {
   const { items, totalUSD, isOpen, close, removeItem, setQty, clear } = useCart();
-
   if (!isOpen) return null;
 
-  const styles = {
-    overlay: {
-      position: "fixed",
-      inset: 0,
-      zIndex: 9990,
-    } as React.CSSProperties,
-    backdrop: {
-      position: "absolute",
-      inset: 0,
-      background: "rgba(0,0,0,.60)",
-    } as React.CSSProperties,
-    panel: {
-      position: "absolute",
-      top: 0,
-      right: 0,
-      height: "100%",
-      width: "100%",
-      maxWidth: 420,
-      background: "var(--panel)",
-      borderLeft: "1px solid rgba(255,255,255,.10)",
-      padding: 16,
-      overflow: "auto",
-    } as React.CSSProperties,
-    header: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-      marginBottom: 14,
-    } as React.CSSProperties,
-    title: {
-      fontSize: 20,
-      fontWeight: 900,
-      margin: 0,
-    } as React.CSSProperties,
-    closeBtn: {
-      borderRadius: 12,
-      padding: "10px 12px",
-      background: "rgba(255,255,255,.10)",
-      border: "1px solid rgba(255,255,255,.10)",
-      color: "var(--text)",
-      cursor: "pointer",
-      fontWeight: 800,
-    } as React.CSSProperties,
-    empty: {
-      fontSize: 13,
-      color: "var(--muted)",
-    } as React.CSSProperties,
-    list: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-    } as React.CSSProperties,
-    item: {
-      display: "flex",
-      gap: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(255,255,255,.10)",
-      padding: 12,
-    } as React.CSSProperties,
-    thumb: {
-      width: 64,
-      height: 64,
-      borderRadius: 12,
-      overflow: "hidden",
-      background: "rgba(255,255,255,.06)",
-      flex: "0 0 auto",
-    } as React.CSSProperties,
-    thumbImg: {
-      width: "100%",
-      height: "100%",
-      objectFit: "cover",
-      display: "block",
-    } as React.CSSProperties,
-    info: {
-      flex: 1,
-      minWidth: 0,
-    } as React.CSSProperties,
-    name: {
-      fontWeight: 800,
-      marginBottom: 4,
-      lineHeight: 1.2,
-    } as React.CSSProperties,
-    each: {
-      fontSize: 12,
-      color: "var(--muted)",
-    } as React.CSSProperties,
-    controls: {
-      marginTop: 10,
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      flexWrap: "wrap",
-    } as React.CSSProperties,
-    qty: {
-      width: 84,
-      borderRadius: 12,
-      background: "rgba(0,0,0,.25)",
-      border: "1px solid rgba(255,255,255,.12)",
-      padding: "8px 10px",
-      color: "var(--text)",
-      fontSize: 13,
-    } as React.CSSProperties,
-    smallBtn: {
-      borderRadius: 12,
-      padding: "8px 10px",
-      background: "rgba(255,255,255,.10)",
-      border: "1px solid rgba(255,255,255,.10)",
-      color: "var(--text)",
-      cursor: "pointer",
-      fontSize: 12,
-      fontWeight: 800,
-    } as React.CSSProperties,
-    lineTotal: {
-      fontWeight: 900,
-      whiteSpace: "nowrap",
-      alignSelf: "flex-start",
-    } as React.CSSProperties,
-    totalRow: {
-      marginTop: 16,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    } as React.CSSProperties,
-    totalLabel: {
-      fontSize: 13,
-      color: "var(--muted)",
-    } as React.CSSProperties,
-    totalValue: {
-      fontSize: 20,
-      fontWeight: 900,
-    } as React.CSSProperties,
-    clearBtn: {
-      marginTop: 10,
-      width: "100%",
-      borderRadius: 14,
-      padding: "12px 14px",
-      background: "rgba(255,255,255,.10)",
-      border: "1px solid rgba(255,255,255,.10)",
-      color: "var(--text)",
-      cursor: "pointer",
-      fontWeight: 900,
-      fontSize: 13,
-    } as React.CSSProperties,
-    payWrap: {
-      marginTop: 14,
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-    } as React.CSSProperties,
-  };
+  const subtotal = totalUSD;
+  const shipping = 0;
+  const tax = 0;
+
+  const total = useMemo(() => subtotal + shipping + tax, [subtotal, shipping, tax]);
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.backdrop} onClick={close} />
+    <div className="fixed inset-0 z-[9990]">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={close} />
 
-      <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.header}>
-          <div style={styles.title}>Cart</div>
-          <button style={styles.closeBtn} onClick={close}>
-            Close
-          </button>
-        </div>
-
-        {items.length === 0 ? (
-          <div style={styles.empty}>Your cart is empty.</div>
-        ) : (
-          <>
-            <div style={styles.list}>
-              {items.map((it) => (
-                <div key={it.id} style={styles.item}>
-                  <div style={styles.thumb}>
-                    {it.image ? (
-                      <img
-                        src={it.image}
-                        alt={it.name}
-                        style={styles.thumbImg}
-                        loading="lazy"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div style={styles.info}>
-                    <div style={styles.name}>{it.name}</div>
-                    <div style={styles.each}>${it.price.toFixed(2)} each</div>
-
-                    <div style={styles.controls}>
-                      <input
-                        type="number"
-                        min={1}
-                        value={it.qty}
-                        onChange={(e) => setQty(it.id, Number(e.target.value))}
-                        style={styles.qty}
-                      />
-                      <button
-                        style={styles.smallBtn}
-                        onClick={() => removeItem(it.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={styles.lineTotal}>
-                    ${(it.price * it.qty).toFixed(2)}
-                  </div>
-                </div>
-              ))}
+      <aside
+        className="absolute right-0 top-0 h-full w-full max-w-[440px]
+                   bg-[var(--panel)] border-l border-white/10 shadow-soft"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="h-full flex flex-col">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <div className="text-lg font-black">Cart</div>
+              <div className="text-xs text-[var(--muted)]">{items.length ? `${items.length} item(s)` : "Empty"}</div>
             </div>
 
-            <div style={styles.totalRow}>
-              <div style={styles.totalLabel}>Total</div>
-              <div style={styles.totalValue}>${totalUSD.toFixed(2)}</div>
-            </div>
-
-            <button style={styles.clearBtn} onClick={clear}>
-              Clear cart
+            <button
+              className="rounded-xl px-3 py-2 bg-white/5 border border-white/10 hover:bg-white/10 transition"
+              onClick={close}
+              aria-label="Close cart"
+            >
+              <XIcon className="h-5 w-5" />
             </button>
+          </div>
 
-            <div style={styles.payWrap}>
+          {/* Body */}
+          <div className="flex-1 overflow-auto p-5">
+            {items.length === 0 ? (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                <div className="text-sm text-[var(--muted)]">Your cart is empty.</div>
+                <div className="mt-2 text-sm">
+                  Add products from the catalog and come back here to checkout.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {items.map((it) => (
+                  <div key={it.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 flex gap-3">
+                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-black/25 border border-white/10 flex-shrink-0">
+                      {it.image ? (
+                        <img src={encodeURI(it.image)} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold leading-tight truncate">{it.name}</div>
+                      <div className="text-xs text-[var(--muted)] mt-0.5">{money(it.price)} each</div>
+
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <div className="inline-flex items-center rounded-xl border border-white/10 bg-black/25 overflow-hidden">
+                          <button
+                            className="px-3 py-2 hover:bg-white/10 transition"
+                            onClick={() => setQty(it.id, Math.max(1, it.qty - 1))}
+                            aria-label="Decrease quantity"
+                            type="button"
+                          >
+                            <MinusIcon className="h-4 w-4" />
+                          </button>
+
+                          <input
+                            type="number"
+                            min={1}
+                            value={it.qty}
+                            onChange={(e) => setQty(it.id, Number(e.target.value))}
+                            className="w-16 text-center bg-transparent text-sm font-extrabold outline-none"
+                          />
+
+                          <button
+                            className="px-3 py-2 hover:bg-white/10 transition"
+                            onClick={() => setQty(it.id, it.qty + 1)}
+                            aria-label="Increase quantity"
+                            type="button"
+                          >
+                            <PlusIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <button
+                          className="text-xs font-extrabold px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition"
+                          onClick={() => removeItem(it.id)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="font-black whitespace-nowrap">{money(it.price * it.qty)}</div>
+                  </div>
+                ))}
+
+                <button
+                  className="w-full rounded-2xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition font-extrabold text-sm"
+                  onClick={clear}
+                  type="button"
+                >
+                  Clear cart
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Sticky Summary */}
+          <div className="border-t border-white/10 p-5 bg-black/20">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-[var(--muted)]">Subtotal</span>
+                <span className="font-extrabold">{money(subtotal)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-[var(--muted)]">Shipping</span>
+                <span className="font-extrabold">{money(shipping)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-[var(--muted)]">Tax</span>
+                <span className="font-extrabold">{money(tax)}</span>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+                <span className="text-sm text-[var(--muted)]">Total</span>
+                <span className="text-xl font-black">{money(total)}</span>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2">
               <PayWithAffirm />
               <PayWithCard />
             </div>
-          </>
-        )}
-      </div>
+
+            <div className="mt-3 text-[11px] text-[var(--muted)] leading-relaxed">
+              By checking out you agree to our policies (placeholders). Connect real policies when ready.
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }

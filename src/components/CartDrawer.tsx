@@ -1,126 +1,128 @@
-import React, { useMemo } from "react";
+import React, { useEffect } from "react";
 import { useCart } from "../context/CartContext";
 import PayWithAffirm from "./PayWithAffirm";
 import PayWithCard from "./PayWithCard";
+import { IconMinus, IconPlus, IconX } from "./icons";
 
-function money(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
-}
-
-function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function MinusIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function XIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
+function safeSrc(src?: string) {
+  if (!src) return "";
+  return encodeURI(src);
 }
 
 export default function CartDrawer() {
   const { items, totalUSD, isOpen, close, removeItem, setQty, clear } = useCart();
+
+  // ESC to close + body scroll lock
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, close]);
+
   if (!isOpen) return null;
 
-  const subtotal = totalUSD;
-  const shipping = 0;
-  const tax = 0;
-
-  const total = useMemo(() => subtotal + shipping + tax, [subtotal, shipping, tax]);
+  const count = items.reduce((a, b) => a + (b.qty || 0), 0);
 
   return (
     <div className="fixed inset-0 z-[9990]">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={close} />
+      <button
+        className="absolute inset-0 bg-black/60"
+        onClick={close}
+        aria-label="Close cart overlay"
+        type="button"
+      />
 
-      <aside
-        className="absolute right-0 top-0 h-full w-full max-w-[440px]
-                   bg-[var(--panel)] border-l border-white/10 shadow-soft"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="h-full flex flex-col">
+      <aside className="absolute right-0 top-0 h-full w-full max-w-md">
+        <div className="h-full glass card rounded-none md:rounded-l-3xl border-l border-white/10 overflow-hidden">
           {/* Header */}
-          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
             <div>
-              <div className="text-lg font-black">Cart</div>
-              <div className="text-xs text-[var(--muted)]">{items.length ? `${items.length} item(s)` : "Empty"}</div>
+              <div className="text-lg font-black tracking-tight">Cart</div>
+              <div className="text-xs text-[var(--muted)]">{count} item(s)</div>
             </div>
 
-            <button
-              className="rounded-xl px-3 py-2 bg-white/5 border border-white/10 hover:bg-white/10 transition"
-              onClick={close}
-              aria-label="Close cart"
-            >
-              <XIcon className="h-5 w-5" />
+            <button className="btn" onClick={close} type="button" aria-label="Close cart">
+              <span className="inline-flex items-center gap-2">
+                <IconX className="h-5 w-5" />
+                Close
+              </span>
             </button>
           </div>
 
-          {/* Body */}
-          <div className="flex-1 overflow-auto p-5">
+          {/* Content */}
+          <div className="p-5 overflow-auto h-[calc(100%-160px)]">
             {items.length === 0 ? (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                <div className="text-sm text-[var(--muted)]">Your cart is empty.</div>
-                <div className="mt-2 text-sm">
-                  Add products from the catalog and come back here to checkout.
-                </div>
+              <div className="glass card p-5">
+                <div className="h-serif text-2xl">Your cart is empty</div>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Add something from the catalog and come back here to checkout.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
                 {items.map((it) => (
-                  <div key={it.id} className="rounded-2xl border border-white/10 bg-white/5 p-3 flex gap-3">
-                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-black/25 border border-white/10 flex-shrink-0">
+                  <div
+                    key={it.id}
+                    className="glass card p-4 flex gap-3 items-start"
+                  >
+                    <div className="h-16 w-16 rounded-2xl overflow-hidden bg-black/20 border border-white/10 flex-shrink-0">
                       {it.image ? (
-                        <img src={encodeURI(it.image)} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
+                        <img
+                          src={safeSrc(it.image)}
+                          alt={it.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
                       ) : null}
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="font-extrabold leading-tight truncate">{it.name}</div>
-                      <div className="text-xs text-[var(--muted)] mt-0.5">{money(it.price)} each</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-extrabold truncate">{it.name}</div>
+                      <div className="text-xs text-[var(--muted)]">
+                        ${it.price.toFixed(2)} each
+                      </div>
 
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <div className="inline-flex items-center rounded-xl border border-white/10 bg-black/25 overflow-hidden">
-                          <button
-                            className="px-3 py-2 hover:bg-white/10 transition"
-                            onClick={() => setQty(it.id, Math.max(1, it.qty - 1))}
-                            aria-label="Decrease quantity"
-                            type="button"
-                          >
-                            <MinusIcon className="h-4 w-4" />
-                          </button>
+                      {/* qty stepper */}
+                      <div className="mt-3 inline-flex items-center gap-2">
+                        <button
+                          className="btn btn-dark !rounded-xl px-3"
+                          onClick={() => setQty(it.id, Math.max(1, it.qty - 1))}
+                          type="button"
+                          aria-label="Decrease quantity"
+                        >
+                          <IconMinus className="h-4 w-4" />
+                        </button>
 
-                          <input
-                            type="number"
-                            min={1}
-                            value={it.qty}
-                            onChange={(e) => setQty(it.id, Number(e.target.value))}
-                            className="w-16 text-center bg-transparent text-sm font-extrabold outline-none"
-                          />
-
-                          <button
-                            className="px-3 py-2 hover:bg-white/10 transition"
-                            onClick={() => setQty(it.id, it.qty + 1)}
-                            aria-label="Increase quantity"
-                            type="button"
-                          >
-                            <PlusIcon className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <input
+                          type="number"
+                          min={1}
+                          value={it.qty}
+                          onChange={(e) => setQty(it.id, Number(e.target.value))}
+                          className="w-20 rounded-xl bg-black/25 border border-white/10 px-3 py-2 text-sm font-black text-center text-white"
+                        />
 
                         <button
-                          className="text-xs font-extrabold px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition"
+                          className="btn btn-dark !rounded-xl px-3"
+                          onClick={() => setQty(it.id, it.qty + 1)}
+                          type="button"
+                          aria-label="Increase quantity"
+                        >
+                          <IconPlus className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          className="btn !rounded-xl"
                           onClick={() => removeItem(it.id)}
                           type="button"
                         >
@@ -129,50 +131,46 @@ export default function CartDrawer() {
                       </div>
                     </div>
 
-                    <div className="font-black whitespace-nowrap">{money(it.price * it.qty)}</div>
+                    <div className="font-black whitespace-nowrap">
+                      ${(it.price * it.qty).toFixed(2)}
+                    </div>
                   </div>
                 ))}
-
-                <button
-                  className="w-full rounded-2xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition font-extrabold text-sm"
-                  onClick={clear}
-                  type="button"
-                >
-                  Clear cart
-                </button>
               </div>
             )}
           </div>
 
-          {/* Sticky Summary */}
-          <div className="border-t border-white/10 p-5 bg-black/20">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Subtotal</span>
-                <span className="font-extrabold">{money(subtotal)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Shipping</span>
-                <span className="font-extrabold">{money(shipping)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Tax</span>
-                <span className="font-extrabold">{money(tax)}</span>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
-                <span className="text-sm text-[var(--muted)]">Total</span>
-                <span className="text-xl font-black">{money(total)}</span>
-              </div>
+          {/* Footer / Checkout */}
+          <div className="p-5 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-[var(--muted)]">Total</div>
+              <div className="text-2xl font-black">${totalUSD.toFixed(2)}</div>
             </div>
 
-            <div className="mt-3 grid gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button className="btn" onClick={clear} type="button" disabled={items.length === 0}>
+                Clear
+              </button>
+
+              <button
+                className="btn"
+                onClick={() => {
+                  const el = document.getElementById("contact");
+                  el?.scrollIntoView({ behavior: "smooth" });
+                }}
+                type="button"
+              >
+                Need help?
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
               <PayWithAffirm />
               <PayWithCard />
             </div>
 
-            <div className="mt-3 text-[11px] text-[var(--muted)] leading-relaxed">
-              By checking out you agree to our policies (placeholders). Connect real policies when ready.
+            <div className="mt-3 text-xs text-[var(--muted)]">
+              Checkout is secure. Taxes/shipping can be calculated at confirmation if needed.
             </div>
           </div>
         </div>

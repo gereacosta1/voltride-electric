@@ -11,14 +11,15 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = useMemo<I18n>(() => {
     const t = (k: string) => {
       const map: Record<string, string> = {
+        "nav.home": "Home",
+        "nav.catalog": "Catalog",
+        "nav.about": "About",
+        "nav.contact": "Contact",
         "cart.title": "Cart",
         "cart.total": "Total",
         "cart.empty": "Your cart is empty",
-        "cart.clear": "Clear",
+        "cart.clear": "Clear cart",
         "cart.remove": "Remove",
-        "cart.plus": "Increase",
-        "cart.minus": "Decrease",
-        "cart.payWithAffirm": "Pay with Affirm",
         "modal.close": "Close",
       };
       return map[k] || k;

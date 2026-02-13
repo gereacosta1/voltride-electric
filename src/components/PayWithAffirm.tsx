@@ -13,7 +13,7 @@ export default function PayWithAffirm() {
         id: it.id,
         price: it.price,
         qty: it.qty,
-        url: it.url || "#catalog",
+        url: it.url || "/",
         image: it.image,
       }))}
       totalUSD={totalUSD}

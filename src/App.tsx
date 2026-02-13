@@ -1,34 +1,41 @@
+// src/App.tsx
 import React from "react";
 import { CartProvider, useCart } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
 import { I18nProvider } from "./i18n/I18nProvider";
 import { products } from "./data/products";
 
+function safeSrc(src: string) {
+  // Maneja espacios y caracteres raros en paths tipo "/IMG/ELECTRIC SCOOTER.jpeg"
+  return encodeURI(src);
+}
+
 function Home() {
   const { addItem, open } = useCart();
 
   return (
-    <div className="min-h-screen px-6 py-10">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="page min-h-screen px-6 py-10">
+      <div className="container max-w-5xl mx-auto">
+        <div className="topbar flex items-center justify-between mb-8">
           <h1 className="text-3xl font-black">Voltride</h1>
+
           <button
-            className="rounded-xl px-4 py-2 bg-white text-black font-semibold"
+            className="btn btn-primary rounded-xl px-4 py-2 bg-white text-black font-semibold"
             onClick={open}
           >
             Open cart
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="product-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.slice(0, 6).map((p) => (
             <div
               key={p.id}
-              className="rounded-2xl bg-[var(--panel)] border border-white/10 overflow-hidden"
+              className="product-card rounded-2xl bg-[var(--panel)] border border-white/10 overflow-hidden"
             >
               <img
-                className="h-48 w-full object-cover"
-                src={encodeURI(p.image)}
+                className="product-img h-48 w-full object-cover"
+                src={safeSrc(p.image)}
                 alt={p.name}
                 loading="lazy"
               />
@@ -48,7 +55,7 @@ function Home() {
                   </div>
 
                   <button
-                    className="rounded-xl px-3 py-2 bg-gradient-to-r from-fuchsia-500 to-lime-400 text-black font-extrabold"
+                    className="btn rounded-xl px-3 py-2 bg-gradient-to-r from-fuchsia-500 to-lime-400 text-black font-extrabold"
                     onClick={() =>
                       addItem({
                         id: String(p.id),

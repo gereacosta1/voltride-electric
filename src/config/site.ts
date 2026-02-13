@@ -13,11 +13,6 @@ export const site = {
     whatsapp: "#",
   },
 
-  // Assets en /public
-  logo: "/logo.png",
-  favicon: "/favicon.png",
-
-  // Extras útiles para SEO / UI
-  city: "Miami, FL",
-  description: "Electric mobility in Miami — scooters, e-bikes & accessories. Pay with Affirm or card.",
+  // ✅ Está en /public/IMG/logo.png => se referencia como /IMG/logo.png
+  logo: "/IMG/logo.png",
 };

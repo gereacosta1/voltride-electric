@@ -38,13 +38,15 @@ export default function Navbar() {
                     "radial-gradient(60% 60% at 80% 60%, rgba(163,230,53,.25), transparent 65%)",
                 }}
               />
+
+              {/* ✅ usa el logo del config (y fuerza refresh si cachea) */}
               <img
-                src="/logo.png"
+                src={`${site.logo}?v=1`}
                 alt={site.name}
                 className="relative h-9 w-9 object-contain"
                 loading="eager"
                 onError={(e) => {
-                  // si no existe logo.png, no rompe
+                  // si no encuentra el archivo, lo ocultamos para que no rompa el layout
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
@@ -88,8 +90,7 @@ export default function Navbar() {
             <button
               className="btn btn-primary px-5 py-2.5 rounded-xl font-extrabold"
               style={{
-                background:
-                  "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
+                background: "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
                 color: "#0B0F14",
               }}
               onClick={() => scrollToId("catalog")}
@@ -106,9 +107,7 @@ export default function Navbar() {
               type="button"
               aria-label="Open cart"
               title="Open cart"
-              style={{
-                boxShadow: "0 0 0 4px rgba(217,70,239,.10)",
-              }}
+              style={{ boxShadow: "0 0 0 4px rgba(217,70,239,.10)" }}
             >
               <IconCart className="h-5 w-5" />
               <span className="hidden sm:inline">Cart</span>
@@ -118,8 +117,7 @@ export default function Navbar() {
                   className="absolute -top-2 -right-2 h-6 min-w-6 px-2 rounded-full
                              text-xs font-black inline-flex items-center justify-center"
                   style={{
-                    background:
-                      "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
+                    background: "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
                     color: "#0B0F14",
                     border: "1px solid rgba(255,255,255,.25)",
                   }}

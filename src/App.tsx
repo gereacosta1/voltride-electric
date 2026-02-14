@@ -322,18 +322,21 @@ function HomePage() {
           />
 
           <div className="glass card p-4 md:p-6">
-            <img
-              src="/IMG/tienda-fisica-voltride.jpeg"
-              alt="Voltride Electric LLC physical store"
-              loading="lazy"
-              className="w-full h-auto rounded-2xl border border-white/10"
+            <div
+              className="w-full rounded-2xl border border-white/10 overflow-hidden"
               style={{ boxShadow: "0 18px 55px rgba(0,0,0,.35)" }}
-              onError={(e) => {
-                // Si no carga, es porque la imagen no está en /public/IMG/
-                // Solución: mover "tienda-fisica-voltride.jpeg" a public/IMG/
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
+            >
+              <img
+                src="/IMG/tienda-fisica-voltride.jpeg"
+                alt="Voltride Electric LLC physical store"
+                loading="lazy"
+                className="w-full object-cover"
+                style={{ height: 360 }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </div>
 
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="text-sm text-[var(--muted)]">

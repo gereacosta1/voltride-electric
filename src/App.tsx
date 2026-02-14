@@ -1,3 +1,4 @@
+//src/App.tsx
 import React, { useMemo, useState } from "react";
 import { CartProvider } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
@@ -308,6 +309,44 @@ function HomePage() {
               <div className="mt-5 text-xs text-[var(--muted)]">
                 Tip: when you add more products, mark some as <b>featured</b> to keep the homepage strong.
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* STORE PHOTO (NEW) */}
+        <section className="section anchor" id="store">
+          <SectionTitle
+            eyebrow="Store"
+            title="Visit our physical store"
+            subtitle="A quick look at our storefront in Miami. Local pickup available — ask us for availability and options."
+          />
+
+          <div className="glass card p-4 md:p-6">
+            <img
+              src="/IMG/tienda-fisica-voltride.jpeg"
+              alt="Voltride Electric LLC physical store"
+              loading="lazy"
+              className="w-full h-auto rounded-2xl border border-white/10"
+              style={{ boxShadow: "0 18px 55px rgba(0,0,0,.35)" }}
+              onError={(e) => {
+                // Si no carga, es porque la imagen no está en /public/IMG/
+                // Solución: mover "tienda-fisica-voltride.jpeg" a public/IMG/
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm text-[var(--muted)]">
+                Address: <span className="text-white/90">{site.address}</span>
+              </div>
+
+              <button
+                className="btn btn-primary px-6 py-3"
+                onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+                type="button"
+              >
+                Ask about pickup
+              </button>
             </div>
           </div>
         </section>

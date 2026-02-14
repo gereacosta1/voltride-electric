@@ -69,6 +69,15 @@ export default function Navbar() {
             >
               Catalog
             </button>
+
+            <button
+              className="px-3 py-2 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
+              onClick={() => scrollToId("store")}
+              type="button"
+            >
+              Store
+            </button>
+
             <button
               className="px-3 py-2 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
               onClick={() => scrollToId("about")}

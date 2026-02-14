@@ -1,3 +1,4 @@
+//src/components/ProductCard.tsx
 import React from "react";
 import { Product } from "../data/products";
 import { useCart } from "../context/CartContext";

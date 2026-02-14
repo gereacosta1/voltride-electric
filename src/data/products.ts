@@ -1,3 +1,4 @@
+//src/data/products.ts
 export type ProductCategory = "scooters" | "ebikes" | "audio";
 
 export type Product = {

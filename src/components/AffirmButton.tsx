@@ -395,7 +395,7 @@ export default function AffirmButton({
           const orderId = "ORDER-" + Date.now();
 
           try {
-            const r = await fetch("/api/affirm-authorize", {
+            const r = await fetch("/.netlify/functions/affirm-authorize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

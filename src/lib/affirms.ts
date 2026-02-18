@@ -1,3 +1,4 @@
+//src/lib/affirms.ts
 declare global {
   interface Window {
     affirm?: any;

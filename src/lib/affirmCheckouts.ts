@@ -1,3 +1,4 @@
+//src/lib/affirmCheckouts.ts
 export type CartItem = {
   id: string | number;
   title: string;

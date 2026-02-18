@@ -1,3 +1,4 @@
+//src/components/PayWithAffirm.tsx
 import React from "react";
 import { useCart } from "../context/CartContext";
 import AffirmButton from "./AffirmButton";

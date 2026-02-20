@@ -1,4 +1,4 @@
-//src/lib/cardCheckouts.ts
+// src/lib/cardCheckouts.ts
 import type { CartItem } from "../context/CartContext";
 
 const API_URL = "/api/card-checkout";
@@ -10,18 +10,23 @@ export async function startCardCheckout(items: CartItem[]): Promise<void> {
 
   const res = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ items, origin }),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("[card-checkout] error body:", text);
-    throw new Error("The card payment could not be initiated.");
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // se queda como {}
   }
 
-  const data = await res.json();
-  if (!data.url) throw new Error("Stripe response did not include a URL.");
+  if (!res.ok) {
+    console.error("[card-checkout] status:", res.status, "body:", data || text);
+    throw new Error(data?.error || "The card payment could not be initiated.");
+  }
 
-  window.location.href = data.url as string;
+  if (!data?.url) throw new Error("Stripe response did not include a URL.");
+  window.location.href = String(data.url);
 }

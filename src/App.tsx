@@ -40,6 +40,82 @@ function SectionTitle({
   );
 }
 
+function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
+  const isConfirm = type === "confirm";
+
+  return (
+    <div id="home" className="anchor min-h-screen">
+      <Navbar />
+
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <section className="section">
+          <div className="glass card p-6 md:p-10">
+            <div className="inline-flex items-center gap-2 badge">
+              <IconBolt className="h-4 w-4" />
+              {isConfirm ? "Affirm • Confirmation" : "Affirm • Canceled"}
+            </div>
+
+            <h1 className="h-serif mt-5 text-4xl md:text-5xl leading-[1.02]">
+              {isConfirm ? "Thanks, your request was received." : "Affirm checkout was canceled."}
+            </h1>
+
+            <p className="mt-4 text-sm md:text-base text-[var(--muted)] max-w-2xl leading-relaxed">
+              {isConfirm
+                ? "If your financing application was approved, your request has been sent and the charge confirmation is handled by our checkout flow. If you need help, contact us and we’ll verify the order status."
+                : "No charges were made. You can return to the store and try again whenever you’re ready."}
+            </p>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-2">
+              <a className="btn btn-primary px-6 py-3 text-center" href="/">
+                Return to store
+              </a>
+
+              <a className="btn px-6 py-3 text-center" href={`mailto:${site.email}`}>
+                Contact support
+              </a>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="glass card p-4">
+                <div className="font-black">Phone</div>
+                <div className="text-sm mt-1">
+                  <a
+                    className="underline decoration-white/20 hover:decoration-white/60"
+                    href={`tel:${site.phoneE164}`}
+                  >
+                    {site.phonePretty}
+                  </a>
+                </div>
+              </div>
+
+              <div className="glass card p-4">
+                <div className="font-black">Email</div>
+                <div className="text-sm mt-1">
+                  <a
+                    className="underline decoration-white/20 hover:decoration-white/60"
+                    href={`mailto:${site.email}`}
+                  >
+                    {site.email}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 text-xs text-[var(--muted)]">
+              {isConfirm
+                ? "Tip: if you don’t see a final confirmation on our side, check Netlify Function logs for /affirm-authorize."
+                : "You can also choose card checkout if you prefer."}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <Footer />
+      <CartDrawer />
+    </div>
+  );
+}
+
 function HomePage() {
   const featured = useMemo(() => products.filter((p) => p.featured).slice(0, 6), []);
   const [tab, setTab] = useState<"all" | ProductCategory>("all");
@@ -556,10 +632,22 @@ function HomePage() {
 }
 
 export default function App() {
+  const pathname =
+    typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
+
+  const isAffirmConfirm = pathname === "/checkout/affirm/confirm";
+  const isAffirmCancel = pathname === "/checkout/affirm/cancel";
+
   return (
     <I18nProvider>
       <CartProvider>
-        <HomePage />
+        {isAffirmConfirm ? (
+          <AffirmReturnPage type="confirm" />
+        ) : isAffirmCancel ? (
+          <AffirmReturnPage type="cancel" />
+        ) : (
+          <HomePage />
+        )}
       </CartProvider>
     </I18nProvider>
   );

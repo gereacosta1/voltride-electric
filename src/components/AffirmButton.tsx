@@ -1,5 +1,5 @@
 //src/components/AffirmButton.tsx
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { loadAffirm } from "../lib/affirms";
 import {
   buildAffirmCheckout,
@@ -99,6 +99,7 @@ function NiceModal({
             }`}
             aria-label="Close"
             title={disableClose ? "Complete the form to continue" : "Close"}
+            type="button"
           >
             ✕
           </button>
@@ -109,6 +110,7 @@ function NiceModal({
         <div className="flex items-center justify-end gap-3">
           {secondaryLabel && (
             <button
+              type="button"
               onClick={onClose}
               className={`px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 ${
                 disableClose ? "opacity-40 pointer-events-none" : ""
@@ -119,6 +121,7 @@ function NiceModal({
           )}
           {primaryLabel && (
             <button
+              type="button"
               onClick={onPrimary}
               className="px-4 py-2 rounded-lg bg-black text-white font-bold hover:bg-gray-900"
             >
@@ -283,14 +286,33 @@ export default function AffirmButton({
     zip: "",
   });
 
+  const toastTimerRef = useRef<number | null>(null);
+
   const showToast = (
     type: "success" | "error" | "info",
     message: string,
     ms = 2200
   ) => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+
     setToast({ show: true, type, message });
-    window.setTimeout(() => setToast((s) => ({ ...s, show: false })), ms);
+
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast((s) => ({ ...s, show: false }));
+      toastTimerRef.current = null;
+    }, ms);
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   const mapped: Item[] = useMemo(() => {
     return cartItems.map((it, i) => ({
@@ -314,14 +336,24 @@ export default function AffirmButton({
   const canPay = affirmEnabled && ready && mapped.length > 0 && totalC >= MIN_TOTAL_CENTS;
 
   useEffect(() => {
+    let mounted = true;
+
     if (!PUBLIC_KEY) {
       setReady(false);
       return;
     }
 
     loadAffirm(PUBLIC_KEY, ENV)
-      .then(() => setReady(true))
-      .catch(() => setReady(false));
+      .then(() => {
+        if (mounted) setReady(true);
+      })
+      .catch(() => {
+        if (mounted) setReady(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [PUBLIC_KEY, ENV]);
 
   const buyerValid =
@@ -349,6 +381,8 @@ export default function AffirmButton({
   }
 
   async function startAffirmFlow() {
+    if (opening) return; // evita doble click / doble open
+
     const affirm = (window as any).affirm;
 
     if (!affirm?.checkout) {
@@ -375,6 +409,10 @@ export default function AffirmButton({
       return;
     }
 
+    // cerramos modales informativos antes de abrir checkout
+    setModal({ open: false, title: "", body: "", retry: false });
+    setBuyerModalOpen(false);
+
     const base = window.location.origin.replace("http://", "https://");
     const customer = buildCustomerFromBuyer();
 
@@ -392,6 +430,19 @@ export default function AffirmButton({
 
       affirm.checkout.open({
         onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
+          const token = String(checkout_token || "").trim();
+
+          if (!token) {
+            setModal({
+              open: true,
+              title: "Missing checkout token",
+              body: "Affirm completed, but no checkout token was returned.",
+              retry: true,
+            });
+            setOpening(false);
+            return;
+          }
+
           const orderId = "ORDER-" + Date.now();
 
           try {
@@ -399,20 +450,32 @@ export default function AffirmButton({
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                checkout_token,
+                checkout_token: token,
                 order_id: orderId,
-                amount_cents: totalC,
+                amount_cents: Number(checkout.total), // usar exactamente el total enviado a Affirm
                 currency: "USD",
                 capture: true,
               }),
             });
 
+            let payload: any = null;
+            try {
+              payload = await r.json();
+            } catch {
+              payload = null;
+            }
+
             if (!r.ok) {
+              const detailsMsg =
+                payload?.details?.message ||
+                payload?.details?.code ||
+                payload?.error ||
+                "The server could not confirm the charge with Affirm.";
+
               setModal({
                 open: true,
                 title: "Server error",
-                body:
-                  "Affirm opened successfully, but the server could not confirm the charge. Check Netlify function logs.",
+                body: `${detailsMsg} Check Netlify function logs for more details.`,
                 retry: true,
               });
               return;

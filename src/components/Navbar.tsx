@@ -7,27 +7,35 @@ import { IconCart } from "./icons";
 function scrollToId(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Compensa navbar sticky para que el título no quede tapado
+  const NAV_OFFSET = 110;
+  const top = el.getBoundingClientRect().top + window.scrollY - NAV_OFFSET;
+
+  window.scrollTo({
+    top: Math.max(0, top),
+    behavior: "smooth",
+  });
 }
 
 export default function Navbar() {
   const { open, items } = useCart();
-  const count = items.reduce((a, b) => a + (b.qty || 0), 0);
+  const count = items.reduce((acc, item) => acc + (Number(item.qty) || 0), 0);
 
   return (
     <div className="sticky top-0 z-50">
       <div className="mx-auto max-w-6xl px-4 pt-4">
-        <div className="glass card px-4 py-3 flex items-center justify-between">
+        <div className="glass card px-4 py-3 flex items-center justify-between gap-3">
           {/* BRAND */}
           <button
-            className="flex items-center gap-3 text-left group"
+            className="flex items-center gap-3 text-left group min-w-0"
             onClick={() => scrollToId("home")}
             type="button"
             aria-label="Go to top"
           >
             <div
               className="h-11 w-11 rounded-2xl overflow-hidden border border-white/10 bg-black/20
-                         flex items-center justify-center relative"
+                         flex items-center justify-center relative shrink-0"
             >
               {/* soft glow */}
               <div
@@ -39,24 +47,23 @@ export default function Navbar() {
                 }}
               />
 
-              {/* ✅ usa el logo del config (y fuerza refresh si cachea) */}
               <img
                 src={`${site.logo}?v=1`}
                 alt={site.name}
                 className="relative h-9 w-9 object-contain"
                 loading="eager"
                 onError={(e) => {
-                  // si no encuentra el archivo, lo ocultamos para que no rompa el layout
+                  // ocultar img rota sin romper layout
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
             </div>
 
-            <div className="leading-tight">
-              <div className="font-extrabold tracking-tight group-hover:opacity-95">
+            <div className="leading-tight min-w-0">
+              <div className="font-extrabold tracking-tight group-hover:opacity-95 truncate">
                 {site.name}
               </div>
-              <div className="text-xs text-[var(--muted)]">{site.brandTagline}</div>
+              <div className="text-xs text-[var(--muted)] truncate">{site.brandTagline}</div>
             </div>
           </button>
 
@@ -85,6 +92,7 @@ export default function Navbar() {
             >
               About
             </button>
+
             <button
               className="px-3 py-2 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
               onClick={() => scrollToId("contact")}
@@ -95,7 +103,7 @@ export default function Navbar() {
           </div>
 
           {/* ACTIONS */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               className="btn btn-primary px-5 py-2.5 rounded-xl font-extrabold"
               style={{

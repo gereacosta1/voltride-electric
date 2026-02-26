@@ -1,8 +1,8 @@
-//src/context/CartContext.tsx
-import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
+// src/context/CartContext.tsx
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
 
 export type CartItem = {
-  id: string;
+  id: string | number;
   name: string;
   price: number; // USD
   qty: number;
@@ -18,14 +18,37 @@ type CartCtx = {
   close: () => void;
   isOpen: boolean;
   addItem: (item: CartItem) => void;
-  removeItem: (id: string) => void;
+  removeItem: (id: string | number) => void;
   clear: () => void;
-  setQty: (id: string, qty: number) => void;
+  setQty: (id: string | number, qty: number) => void;
 };
 
 const Ctx = createContext<CartCtx | null>(null);
 
 const STORAGE_KEY = "voltride_cart_v1";
+
+function normalizeItem(it: any): CartItem | null {
+  if (!it) return null;
+
+  const id = it.id;
+  if (id === undefined || id === null) return null;
+
+  const name = String(it.name ?? "").trim();
+  if (!name) return null;
+
+  const price = Number(it.price);
+  const qty = Number(it.qty);
+
+  return {
+    id,
+    name,
+    price: Number.isFinite(price) ? price : 0,
+    qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
+    sku: it.sku ? String(it.sku) : undefined,
+    image: it.image ? String(it.image) : undefined,
+    url: it.url ? String(it.url) : undefined,
+  };
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -36,8 +59,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
+
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) setItems(parsed);
+      if (!Array.isArray(parsed)) return;
+
+      const normalized = parsed
+        .map(normalizeItem)
+        .filter(Boolean) as CartItem[];
+
+      setItems(normalized);
     } catch {
       // ignore
     }
@@ -53,7 +83,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const totalUSD = useMemo(() => {
-    return items.reduce((acc, it) => acc + it.price * it.qty, 0);
+    return items.reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
   }, [items]);
 
   const api: CartCtx = {
@@ -64,15 +94,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     close: () => setIsOpen(false),
 
     addItem: (next) => {
+      const nextQty = Math.max(1, Number(next.qty) || 1);
+      const nextPrice = Number(next.price) || 0;
+
       setItems((prev) => {
         const idx = prev.findIndex((p) => p.id === next.id);
         if (idx >= 0) {
           const copy = [...prev];
-          copy[idx] = { ...copy[idx], qty: copy[idx].qty + (next.qty || 1) };
+          copy[idx] = {
+            ...copy[idx],
+            qty: Math.max(1, Number(copy[idx].qty) || 1) + nextQty,
+          };
           return copy;
         }
-        return [...prev, { ...next, qty: Math.max(1, next.qty || 1) }];
+        return [...prev, { ...next, price: nextPrice, qty: nextQty }];
       });
+
       setIsOpen(true);
     },
 

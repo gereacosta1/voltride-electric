@@ -1,4 +1,4 @@
-//src/components/AffirmButton.tsx
+// src/components/AffirmButton.tsx
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { loadAffirm } from "../lib/affirms";
 import {
@@ -250,6 +250,22 @@ function BuyerInfoForm({
   );
 }
 
+async function safeReadText(res: Response): Promise<string> {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
+function tryParseJson(text: string): any | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export default function AffirmButton({
   cartItems = [],
   totalUSD,
@@ -278,12 +294,12 @@ export default function AffirmButton({
   const [buyerModalOpen, setBuyerModalOpen] = useState(false);
   const [buyer, setBuyer] = useState<BuyerForm>({
     firstName: "",
-  lastName: "",
-  email: "",
-  line1: "",
-  city: "",
-  state: "",
-  zip: "",
+    lastName: "",
+    email: "",
+    line1: "",
+    city: "",
+    state: "",
+    zip: "",
   });
 
   const toastTimerRef = useRef<number | null>(null);
@@ -308,9 +324,7 @@ export default function AffirmButton({
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) {
-        window.clearTimeout(toastTimerRef.current);
-      }
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
 
@@ -381,7 +395,7 @@ export default function AffirmButton({
   }
 
   async function startAffirmFlow() {
-    if (opening) return; // evita doble click / doble open
+    if (opening) return;
 
     const affirm = (window as any).affirm;
 
@@ -409,7 +423,6 @@ export default function AffirmButton({
       return;
     }
 
-    // cerramos modales informativos antes de abrir checkout
     setModal({ open: false, title: "", body: "", retry: false });
     setBuyerModalOpen(false);
 
@@ -432,6 +445,12 @@ export default function AffirmButton({
         onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
           const token = String(checkout_token || "").trim();
 
+          // 🔎 Debug: si esto NO aparece en la consola del cliente, el onSuccess no está ocurriendo.
+          console.log("[affirm] onSuccess", {
+            has_token: Boolean(token),
+            token_preview: token ? token.slice(0, 8) + "…" : null,
+          });
+
           if (!token) {
             setModal({
               open: true,
@@ -446,43 +465,50 @@ export default function AffirmButton({
           const orderId = "ORDER-" + Date.now();
 
           try {
+            // 🔎 Debug: confirma que el browser intenta llamar al server
+            console.log("[affirm] calling /api/affirm-authorize", { orderId });
+
             const r = await fetch("/api/affirm-authorize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 checkout_token: token,
                 order_id: orderId,
-                amount_cents: Number(checkout.total), // usar exactamente el total enviado a Affirm
+                amount_cents: Number(checkout.total),
                 currency: "USD",
                 capture: true,
               }),
             });
 
-            let payload: any = null;
-            try {
-              payload = await r.json();
-            } catch {
-              payload = null;
-            }
+            const text = await safeReadText(r);
+            const payload = tryParseJson(text);
+
+            console.log("[affirm] authorize response", {
+              status: r.status,
+              ok: r.ok,
+              body_preview: text ? text.slice(0, 200) : "",
+            });
 
             if (!r.ok) {
               const detailsMsg =
                 payload?.details?.message ||
                 payload?.details?.code ||
                 payload?.error ||
+                text ||
                 "The server could not confirm the charge with Affirm.";
 
               setModal({
                 open: true,
-                title: "Server error",
-                body: `${detailsMsg} Check Netlify function logs for more details.`,
+                title: "We could not confirm your request",
+                body: `${detailsMsg} (HTTP ${r.status})`,
                 retry: true,
               });
               return;
             }
 
             showToast("success", "Affirm request submitted!");
-          } catch {
+          } catch (err) {
+            console.error("[affirm] authorize network error", err);
             setModal({
               open: true,
               title: "We could not confirm your request",
@@ -519,7 +545,8 @@ export default function AffirmButton({
           });
         },
       });
-    } catch {
+    } catch (err) {
+      console.error("[affirm] open fatal", err);
       setOpening(false);
       showToast("error", "Could not open Affirm.");
     }

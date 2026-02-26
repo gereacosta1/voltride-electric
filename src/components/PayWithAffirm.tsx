@@ -1,5 +1,4 @@
-//src/components/PayWithAffirm.tsx
-import React from "react";
+// src/components/PayWithAffirm.tsx
 import { useCart } from "../context/CartContext";
 import AffirmButton from "./AffirmButton";
 
@@ -9,15 +8,15 @@ export default function PayWithAffirm() {
   return (
     <AffirmButton
       cartItems={items.map((it) => ({
-        name: it.name,
-        sku: it.sku || it.id,
+        name: String(it.name ?? ""),
+        sku: (it.sku ?? it.id) as string | number,
         id: it.id,
-        price: it.price,
-        qty: it.qty,
+        price: Number(it.price) || 0,
+        qty: Math.max(1, Number(it.qty) || 1),
         url: it.url || "/",
         image: it.image,
       }))}
-      totalUSD={totalUSD}
+      totalUSD={Number(totalUSD) || 0}
       shippingUSD={0}
       taxUSD={0}
     />

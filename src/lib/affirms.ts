@@ -38,7 +38,8 @@ function waitForAffirmReady(timeoutMs = 10000): Promise<void> {
   });
 }
 
-function removeExistingAffirmScript(src: string) {
+function removeExistingAffirmScript(src?: string | null) {
+  if (!src) return;
   const scripts = Array.from(document.querySelectorAll("script"));
   for (const script of scripts) {
     if ((script as HTMLScriptElement).src === src) {
@@ -59,6 +60,7 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
 
   const scriptSrc = getAffirmScriptUrl(env);
 
+  // Ya está listo con esta misma config
   if (
     window.affirm?.checkout &&
     loadedScriptSrc === scriptSrc &&
@@ -67,6 +69,7 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     return Promise.resolve();
   }
 
+  // Ya hay una carga en curso para la misma config
   if (loading && loadedScriptSrc === scriptSrc && loadedPublicKey === trimmedKey) {
     return loading;
   }
@@ -79,7 +82,7 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     loading = null;
     window.affirm = undefined;
     window._affirm_config = undefined;
-    removeExistingAffirmScript(loadedScriptSrc || scriptSrc);
+    removeExistingAffirmScript(loadedScriptSrc);
   }
 
   loadedScriptSrc = scriptSrc;

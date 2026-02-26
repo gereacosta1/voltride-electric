@@ -24,7 +24,7 @@ export type Customer = {
     line2?: string;
     city: string;
     state: string; // 2 letters
-    zip: string;   // 5 digits or ZIP+4
+    zip: string; // 5 digits or ZIP+4
     country?: string; // default US
   };
 };
@@ -35,6 +35,7 @@ function safeBase(origin?: string) {
   const raw =
     String(origin || "").trim() ||
     (typeof window !== "undefined" ? window.location.origin : "");
+  // asegura sin trailing slash
   return raw.replace(/\/+$/, "");
 }
 
@@ -55,9 +56,8 @@ function normalizeState(state: string) {
 
 function normalizeZip(zip: string) {
   const z = String(zip || "").trim();
-  // allow "12345" or "12345-6789"
   const m = z.match(/^(\d{5})(-\d{4})?$/);
-  return m ? m[0] : z; // if user typed weird stuff, keep it (Affirm will reject)
+  return m ? m[0] : z;
 }
 
 function normalizeCountry(country?: string) {
@@ -66,7 +66,6 @@ function normalizeCountry(country?: string) {
 }
 
 function normalizeCity(city: string) {
-  // keep letters, spaces, dots, hyphens (avoid trailing/leading spaces)
   return String(city || "").trim();
 }
 
@@ -117,21 +116,23 @@ export function buildAffirmCheckout(
 
   const country = normalizeCountry(customer.address.country);
 
-  // ✅ Address object shaped to satisfy typical Affirm validators
   const address = {
     line1: String(customer.address.line1 || "").trim(),
     line2: String(customer.address.line2 || "").trim() || undefined,
     city: normalizeCity(customer.address.city),
     state: normalizeState(customer.address.state),
     zipcode: normalizeZip(customer.address.zip),
-    country, // keep for compatibility
-    country_code: country, // many Affirm schemas accept/expect this
+    country,
+    country_code: country,
   };
 
   const email = String(customer.email || "").trim();
   const phone = String(customer.phone || "").trim() || undefined;
 
-  return {
+  // ✅ Si shipping es 0, evitamos mandar shipping address (reduce validaciones/errores innecesarios)
+  const includeShipping = shippingC > 0;
+
+  const payload: any = {
     merchant: {
       user_confirmation_url: toAbsoluteUrl(base, "/checkout/affirm/confirm", "/"),
       user_cancel_url: toAbsoluteUrl(base, "/checkout/affirm/cancel", "/"),
@@ -151,11 +152,15 @@ export function buildAffirmCheckout(
       email,
       ...(phone ? { phone_number: phone } : {}),
     },
+  };
 
-    shipping: {
+  if (includeShipping) {
+    payload.shipping = {
       name,
       address,
       ...(phone ? { phone_number: phone } : {}),
-    },
-  };
+    };
+  }
+
+  return payload;
 }

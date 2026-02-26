@@ -27,7 +27,6 @@ function getBasicAuthHeader() {
 
   if (!pub || !priv) return null;
 
-  // ✅ Affirm: API key pair (PUBLIC:PRIVATE)
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
@@ -39,10 +38,34 @@ function parseJsonSafe(raw) {
   }
 }
 
+async function readJsonOrText(res) {
+  const ct = String(res.headers.get("content-type") || "").toLowerCase();
+  if (ct.includes("application/json")) {
+    return await res.json().catch(() => ({}));
+  }
+  const text = await res.text().catch(() => "");
+  return { _non_json: true, text };
+}
+
 export async function handler(event) {
   const startedAt = Date.now();
+  const reqId =
+    event.headers?.["x-nf-request-id"] ||
+    event.headers?.["x-request-id"] ||
+    null;
+
+  console.log("[affirm-checkout] incoming", {
+    reqId,
+    method: event.httpMethod,
+    path: event.path,
+    hasBody: Boolean(event.body),
+  });
 
   try {
+    if (event.httpMethod === "OPTIONS") {
+      return json(204, { ok: true });
+    }
+
     if (event.httpMethod !== "POST") {
       return json(405, { error: "Method not allowed" });
     }
@@ -82,6 +105,7 @@ export async function handler(event) {
     }
 
     console.log("[affirm-checkout] request", {
+      reqId,
       base,
       items_count: checkout.items.length,
       total,
@@ -108,18 +132,21 @@ export async function handler(event) {
       clearTimeout(timeout);
     }
 
-    const data = await res.json().catch(() => ({}));
+    const data = await readJsonOrText(res);
 
     console.log("[affirm-checkout] response", {
+      reqId,
       status: res.status,
       ok: res.ok,
       duration_ms: Date.now() - startedAt,
       has_checkout_token: Boolean(data?.checkout_token),
       has_redirect_url: Boolean(data?.redirect_url),
+      non_json: Boolean(data?._non_json),
     });
 
     if (!res.ok) {
       console.error("[affirm-checkout] error", {
+        reqId,
         status: res.status,
         details: data,
         duration_ms: Date.now() - startedAt,
@@ -142,6 +169,7 @@ export async function handler(event) {
       err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-checkout] fatal", {
+      reqId,
       error: isAbort ? "Request timeout" : String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });

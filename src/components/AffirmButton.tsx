@@ -277,13 +277,13 @@ export default function AffirmButton({
 
   const [buyerModalOpen, setBuyerModalOpen] = useState(false);
   const [buyer, setBuyer] = useState<BuyerForm>({
-    firstName: "Test",
-  lastName: "Buyer",
-  email: "test@example.com",
-  line1: "200 Biscayne Blvd",
-  city: "Miami",
-  state: "FL",
-  zip: "33132",
+    firstName: "",
+  lastName: "",
+  email: "",
+  line1: "",
+  city: "",
+  state: "",
+  zip: "",
   });
 
   const toastTimerRef = useRef<number | null>(null);

@@ -1,4 +1,4 @@
-//src/lib/affirms.ts
+// src/lib/affirms.ts
 declare global {
   interface Window {
     affirm?: any;
@@ -16,7 +16,7 @@ function getAffirmScriptUrl(env: "prod" | "sandbox") {
     : "https://cdn1.affirm.com/js/v2/affirm.js";
 }
 
-function waitForAffirmReady(timeoutMs = 7000): Promise<void> {
+function waitForAffirmReady(timeoutMs = 10000): Promise<void> {
   return new Promise((resolve, reject) => {
     const started = Date.now();
 
@@ -59,7 +59,6 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
 
   const scriptSrc = getAffirmScriptUrl(env);
 
-  // Si ya está cargado y coincide con la config actual, listo
   if (
     window.affirm?.checkout &&
     loadedScriptSrc === scriptSrc &&
@@ -68,22 +67,18 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     return Promise.resolve();
   }
 
-  // Si ya había una carga en curso con la misma config, reusar
-  if (
-    loading &&
-    loadedScriptSrc === scriptSrc &&
-    loadedPublicKey === trimmedKey
-  ) {
+  if (loading && loadedScriptSrc === scriptSrc && loadedPublicKey === trimmedKey) {
     return loading;
   }
 
-  // Si cambió config (env o key), resetear estado e intentar recarga limpia
+  // Cambio de config -> reset
   if (
     (loadedScriptSrc && loadedScriptSrc !== scriptSrc) ||
     (loadedPublicKey && loadedPublicKey !== trimmedKey)
   ) {
     loading = null;
     window.affirm = undefined;
+    window._affirm_config = undefined;
     removeExistingAffirmScript(loadedScriptSrc || scriptSrc);
   }
 
@@ -96,7 +91,6 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
       script: scriptSrc,
     };
 
-    // Si ya existe el script en DOM, no insertamos otro; solo esperamos init
     const existing = Array.from(document.querySelectorAll("script")).find(
       (el) => (el as HTMLScriptElement).src === scriptSrc
     ) as HTMLScriptElement | undefined;
@@ -116,7 +110,6 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     };
 
     if (existing) {
-      // Si ya está y affirm no está listo todavía, esperamos
       finishSuccess();
       return;
     }
@@ -125,13 +118,8 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     s.async = true;
     s.src = scriptSrc;
 
-    s.onload = () => {
-      finishSuccess();
-    };
-
-    s.onerror = () => {
-      finishError();
-    };
+    s.onload = () => finishSuccess();
+    s.onerror = () => finishError();
 
     document.head.appendChild(s);
   });

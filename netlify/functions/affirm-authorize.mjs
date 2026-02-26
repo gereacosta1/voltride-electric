@@ -10,10 +10,26 @@ function json(statusCode, body) {
   };
 }
 
+function normalizeAffirmBase(raw) {
+  const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
+  // Acepta tanto "https://api.affirm.com" como "https://api.affirm.com/api/v2"
+  if (base.endsWith("/api/v2")) return base;
+  return `${base}/api/v2`;
+}
+
 function getBasicAuthHeader() {
-  const priv = process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY;
-  if (!priv) return null;
-  return "Basic " + Buffer.from(`${priv}:`).toString("base64");
+  const pub = String(
+    process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
+  ).trim();
+
+  const priv = String(
+    process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || ""
+  ).trim();
+
+  if (!pub || !priv) return null;
+
+  // ✅ Affirm: API key pair (PUBLIC:PRIVATE)
+  return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
 function parseJsonSafe(raw) {
@@ -34,12 +50,12 @@ export async function handler(event) {
 
     const auth = getBasicAuthHeader();
     if (!auth) {
-      return json(500, { error: "Missing AFFIRM_PRIVATE_KEY" });
+      return json(500, {
+        error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY",
+      });
     }
 
-    const base = String(process.env.AFFIRM_BASE_URL || "https://api.affirm.com/api/v2")
-      .trim()
-      .replace(/\/+$/, "");
+    const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
 
     const body = parseJsonSafe(event.body);
     if (!body) {
@@ -61,7 +77,6 @@ export async function handler(event) {
       return json(400, { error: "Invalid currency" });
     }
 
-    // logs útiles (sin secretos)
     console.log("[affirm-authorize] request", {
       order_id,
       amount_cents,
@@ -76,7 +91,6 @@ export async function handler(event) {
 
     let res;
     try {
-      // Endpoint típico v2 authorize/capture
       res = await fetch(`${base}/charges`, {
         method: "POST",
         headers: {
@@ -125,7 +139,8 @@ export async function handler(event) {
       data,
     });
   } catch (err) {
-    const isAbort = err && (err.name === "AbortError" || String(err).includes("AbortError"));
+    const isAbort =
+      err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-authorize] fatal", {
       error: isAbort ? "Request timeout" : String(err?.message || err),

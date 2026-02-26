@@ -280,10 +280,10 @@ export default function AffirmButton({
     firstName: "Test",
   lastName: "Buyer",
   email: "test@example.com",
-  line1: "123 Main St",
+  line1: "200 Biscayne Blvd",
   city: "Miami",
   state: "FL",
-  zip: "33101",
+  zip: "33132",
   });
 
   const toastTimerRef = useRef<number | null>(null);

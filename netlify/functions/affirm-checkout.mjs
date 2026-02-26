@@ -84,6 +84,8 @@ export async function handler(event) {
       return json(400, { error: "Invalid JSON body" });
     }
 
+    const debug_id = payload.debug_id ? String(payload.debug_id).trim() : null;
+
     const checkout = payload.checkout;
 
     if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
@@ -106,6 +108,7 @@ export async function handler(event) {
 
     console.log("[affirm-checkout] request", {
       reqId,
+      debug_id,
       base,
       items_count: checkout.items.length,
       total,
@@ -136,6 +139,7 @@ export async function handler(event) {
 
     console.log("[affirm-checkout] response", {
       reqId,
+      debug_id,
       status: res.status,
       ok: res.ok,
       duration_ms: Date.now() - startedAt,
@@ -147,6 +151,7 @@ export async function handler(event) {
     if (!res.ok) {
       console.error("[affirm-checkout] error", {
         reqId,
+        debug_id,
         status: res.status,
         details: data,
         duration_ms: Date.now() - startedAt,

@@ -63,7 +63,6 @@ export async function handler(event) {
   });
 
   try {
-    // Preflight defensivo
     if (event.httpMethod === "OPTIONS") {
       return json(204, { ok: true });
     }
@@ -86,6 +85,8 @@ export async function handler(event) {
       return json(400, { error: "Invalid JSON body" });
     }
 
+    const debug_id = body.debug_id ? String(body.debug_id).trim() : null;
+
     const checkout_token = String(body.checkout_token || "").trim();
     const order_id = String(body.order_id || "").trim();
     const amount_cents = Number(body.amount_cents);
@@ -103,6 +104,7 @@ export async function handler(event) {
 
     console.log("[affirm-authorize] request", {
       reqId,
+      debug_id,
       order_id,
       amount_cents,
       currency,
@@ -139,6 +141,7 @@ export async function handler(event) {
 
     console.log("[affirm-authorize] response", {
       reqId,
+      debug_id,
       status: res.status,
       ok: res.ok,
       duration_ms: Date.now() - startedAt,
@@ -149,6 +152,7 @@ export async function handler(event) {
     if (!res.ok) {
       console.error("[affirm-authorize] error", {
         reqId,
+        debug_id,
         status: res.status,
         details: data,
         duration_ms: Date.now() - startedAt,

@@ -31,6 +31,96 @@ const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const isUSState = (v: string) => /^[A-Z]{2}$/.test(v.trim().toUpperCase());
 const isUSZip = (v: string) => /^\d{5}(-\d{4})?$/.test(v.trim());
 
+const DEBUG_STORAGE_KEY = "voltride_affirm_debug_v1";
+const DEBUG_MAX_EVENTS = 200;
+
+type DebugEvent = {
+  ts: string; // ISO
+  step: string;
+  data?: Record<string, any>;
+};
+
+type DebugState = {
+  debugId: string;
+  createdAt: string;
+  events: DebugEvent[];
+};
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function safeJsonParse<T>(raw: string | null): T | null {
+  try {
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function safeJsonStringify(v: any) {
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
+}
+
+function makeDebugId() {
+  // no crypto dependency; good enough for correlation
+  return "dbg_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+function getOrInitDebugState(): DebugState {
+  const existing = safeJsonParse<DebugState>(localStorage.getItem(DEBUG_STORAGE_KEY));
+  if (existing?.debugId && Array.isArray(existing.events)) return existing;
+
+  const init: DebugState = {
+    debugId: makeDebugId(),
+    createdAt: nowIso(),
+    events: [],
+  };
+  localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(init));
+  return init;
+}
+
+function setDebugState(next: DebugState) {
+  localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(next));
+}
+
+function sanitizeEmail(email: string) {
+  const e = String(email || "").trim();
+  const at = e.indexOf("@");
+  if (at === -1) return "";
+  const domain = e.slice(at + 1);
+  return `***@${domain}`;
+}
+
+function sanitizeToken(token: string) {
+  const t = String(token || "").trim();
+  return {
+    token_len: t.length,
+    token_prefix: t ? t.slice(0, 8) + "…" : "",
+  };
+}
+
+async function safeReadText(res: Response): Promise<string> {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
+function tryParseJson(text: string): any | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 function Toast({
   show,
   type,
@@ -250,22 +340,6 @@ function BuyerInfoForm({
   );
 }
 
-async function safeReadText(res: Response): Promise<string> {
-  try {
-    return await res.text();
-  } catch {
-    return "";
-  }
-}
-
-function tryParseJson(text: string): any | null {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 export default function AffirmButton({
   cartItems = [],
   totalUSD,
@@ -302,7 +376,62 @@ export default function AffirmButton({
     zip: "",
   });
 
+  // debug state (persisted)
+  const [debugState, setDebugStateUI] = useState<DebugState | null>(null);
+
   const toastTimerRef = useRef<number | null>(null);
+
+  // init debug storage once
+  useEffect(() => {
+    try {
+      const st = getOrInitDebugState();
+      setDebugStateUI(st);
+    } catch {
+      setDebugStateUI(null);
+    }
+  }, []);
+
+  const addDebugEvent = (step: string, data?: Record<string, any>) => {
+    try {
+      const st = getOrInitDebugState();
+      const next: DebugState = {
+        ...st,
+        events: [
+          ...st.events,
+          { ts: nowIso(), step, data: data ? data : undefined },
+        ].slice(-DEBUG_MAX_EVENTS),
+      };
+      setDebugState(next);
+      setDebugStateUI(next);
+    } catch {
+      // ignore
+    }
+  };
+
+  const traceServer = async (step: string, data?: Record<string, any>) => {
+    // best-effort: do NOT block checkout if trace fails
+    try {
+      const st = getOrInitDebugState();
+      const payload = {
+        debugId: st.debugId,
+        step,
+        ts: nowIso(),
+        data,
+        ua: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        href: typeof window !== "undefined" ? window.location.href : "",
+      };
+
+      // keepalive helps when user closes modal quickly
+      await fetch("/api/trace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   const showToast = (
     type: "success" | "error" | "info",
@@ -354,20 +483,32 @@ export default function AffirmButton({
 
     if (!PUBLIC_KEY) {
       setReady(false);
+      addDebugEvent("affirm_public_key_missing");
+      traceServer("affirm_public_key_missing").catch(() => {});
       return;
     }
+
+    addDebugEvent("affirm_load_start", { env: ENV });
+    traceServer("affirm_load_start", { env: ENV }).catch(() => {});
 
     loadAffirm(PUBLIC_KEY, ENV)
       .then(() => {
         if (mounted) setReady(true);
+        addDebugEvent("affirm_load_ok", { env: ENV });
+        traceServer("affirm_load_ok", { env: ENV }).catch(() => {});
       })
-      .catch(() => {
+      .catch((e) => {
         if (mounted) setReady(false);
+        addDebugEvent("affirm_load_fail", { message: String(e?.message || e) });
+        traceServer("affirm_load_fail", { message: String(e?.message || e) }).catch(
+          () => {}
+        );
       });
 
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [PUBLIC_KEY, ENV]);
 
   const buyerValid =
@@ -399,7 +540,22 @@ export default function AffirmButton({
 
     const affirm = (window as any).affirm;
 
+    addDebugEvent("open_attempt", {
+      cart_items: mapped.length,
+      total_cents: totalC,
+      has_public_key: Boolean(PUBLIC_KEY),
+      env: ENV,
+    });
+    traceServer("open_attempt", {
+      cart_items: mapped.length,
+      total_cents: totalC,
+      has_public_key: Boolean(PUBLIC_KEY),
+      env: ENV,
+    }).catch(() => {});
+
     if (!affirm?.checkout) {
+      addDebugEvent("affirm_not_ready");
+      traceServer("affirm_not_ready").catch(() => {});
       showToast("error", "Affirm is not ready yet");
       return;
     }
@@ -414,11 +570,24 @@ export default function AffirmButton({
           ? "Affirm is still loading."
           : "Affirm is unavailable.";
 
+      addDebugEvent("cannot_pay", { why });
+      traceServer("cannot_pay", { why }).catch(() => {});
+
       setModal({ open: true, title: "Affirm unavailable", body: why, retry: !ready });
       return;
     }
 
     if (!buyerValid) {
+      addDebugEvent("buyer_invalid", {
+        email: sanitizeEmail(buyer.email),
+        has_name: Boolean(buyer.firstName && buyer.lastName),
+        has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
+      });
+      traceServer("buyer_invalid", {
+        email: sanitizeEmail(buyer.email),
+        has_name: Boolean(buyer.firstName && buyer.lastName),
+        has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
+      }).catch(() => {});
       setBuyerModalOpen(true);
       return;
     }
@@ -436,20 +605,38 @@ export default function AffirmButton({
       base
     );
 
+    addDebugEvent("checkout_built", {
+      total: Number(checkout.total),
+      shipping_amount: checkout.shipping_amount,
+      tax_amount: checkout.tax_amount,
+      currency: checkout.currency,
+      billing_email: sanitizeEmail(customer.email),
+    });
+    traceServer("checkout_built", {
+      total: Number(checkout.total),
+      shipping_amount: checkout.shipping_amount,
+      tax_amount: checkout.tax_amount,
+      currency: checkout.currency,
+      billing_email: sanitizeEmail(customer.email),
+    }).catch(() => {});
+
     setOpening(true);
 
     try {
       affirm.checkout(checkout);
+      addDebugEvent("checkout_open");
+      traceServer("checkout_open").catch(() => {});
 
       affirm.checkout.open({
         onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
           const token = String(checkout_token || "").trim();
 
-          // 🔎 Debug: si esto NO aparece en la consola del cliente, el onSuccess no está ocurriendo.
-          console.log("[affirm] onSuccess", {
-            has_token: Boolean(token),
-            token_preview: token ? token.slice(0, 8) + "…" : null,
+          addDebugEvent("onSuccess", {
+            ...sanitizeToken(token),
           });
+          traceServer("onSuccess", {
+            ...sanitizeToken(token),
+          }).catch(() => {});
 
           if (!token) {
             setModal({
@@ -464,14 +651,21 @@ export default function AffirmButton({
 
           const orderId = "ORDER-" + Date.now();
 
-          try {
-            // 🔎 Debug: confirma que el browser intenta llamar al server
-            console.log("[affirm] calling /api/affirm-authorize", { orderId });
+          addDebugEvent("authorize_start", {
+            orderId,
+            amount_cents: Number(checkout.total),
+          });
+          traceServer("authorize_start", {
+            orderId,
+            amount_cents: Number(checkout.total),
+          }).catch(() => {});
 
+          try {
             const r = await fetch("/api/affirm-authorize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                debug_id: getOrInitDebugState().debugId,
                 checkout_token: token,
                 order_id: orderId,
                 amount_cents: Number(checkout.total),
@@ -483,12 +677,6 @@ export default function AffirmButton({
             const text = await safeReadText(r);
             const payload = tryParseJson(text);
 
-            console.log("[affirm] authorize response", {
-              status: r.status,
-              ok: r.ok,
-              body_preview: text ? text.slice(0, 200) : "",
-            });
-
             if (!r.ok) {
               const detailsMsg =
                 payload?.details?.message ||
@@ -496,6 +684,15 @@ export default function AffirmButton({
                 payload?.error ||
                 text ||
                 "The server could not confirm the charge with Affirm.";
+
+              addDebugEvent("authorize_http_error", {
+                status: r.status,
+                message: String(detailsMsg).slice(0, 300),
+              });
+              traceServer("authorize_http_error", {
+                status: r.status,
+                message: String(detailsMsg).slice(0, 300),
+              }).catch(() => {});
 
               setModal({
                 open: true,
@@ -506,9 +703,18 @@ export default function AffirmButton({
               return;
             }
 
+            addDebugEvent("authorize_ok", { status: r.status });
+            traceServer("authorize_ok", { status: r.status }).catch(() => {});
+
             showToast("success", "Affirm request submitted!");
           } catch (err) {
-            console.error("[affirm] authorize network error", err);
+            addDebugEvent("authorize_network_error", {
+              message: String((err as any)?.message || err),
+            });
+            traceServer("authorize_network_error", {
+              message: String((err as any)?.message || err),
+            }).catch(() => {});
+
             setModal({
               open: true,
               title: "We could not confirm your request",
@@ -521,6 +727,8 @@ export default function AffirmButton({
         },
 
         onFail: () => {
+          addDebugEvent("onFail");
+          traceServer("onFail").catch(() => {});
           setOpening(false);
           setModal({
             open: true,
@@ -531,11 +739,15 @@ export default function AffirmButton({
         },
 
         onValidationError: () => {
+          addDebugEvent("onValidationError");
+          traceServer("onValidationError").catch(() => {});
           setOpening(false);
           setBuyerModalOpen(true);
         },
 
         onClose: () => {
+          addDebugEvent("onClose");
+          traceServer("onClose").catch(() => {});
           setOpening(false);
           setModal({
             open: true,
@@ -546,7 +758,13 @@ export default function AffirmButton({
         },
       });
     } catch (err) {
-      console.error("[affirm] open fatal", err);
+      addDebugEvent("checkout_open_fatal", {
+        message: String((err as any)?.message || err),
+      });
+      traceServer("checkout_open_fatal", {
+        message: String((err as any)?.message || err),
+      }).catch(() => {});
+
       setOpening(false);
       showToast("error", "Could not open Affirm.");
     }
@@ -559,6 +777,28 @@ export default function AffirmButton({
     : opening
     ? "Opening…"
     : "Pay with Affirm";
+
+  const copyDebug = async () => {
+    try {
+      const st = safeJsonParse<DebugState>(localStorage.getItem(DEBUG_STORAGE_KEY));
+      const text = safeJsonStringify(st || { error: "No debug data" });
+      await navigator.clipboard.writeText(text);
+      showToast("success", "Debug copied");
+    } catch {
+      showToast("error", "Could not copy debug");
+    }
+  };
+
+  const clearDebug = () => {
+    try {
+      localStorage.removeItem(DEBUG_STORAGE_KEY);
+      const st = getOrInitDebugState();
+      setDebugStateUI(st);
+      showToast("success", "Debug cleared");
+    } catch {
+      showToast("error", "Could not clear debug");
+    }
+  };
 
   return (
     <>
@@ -582,6 +822,33 @@ export default function AffirmButton({
       >
         {label}
       </button>
+
+      {/* Debug controls (small, non-invasive) */}
+      {debugState?.debugId && (
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500">
+          <div className="truncate">
+            Debug ID: <span className="font-mono">{debugState.debugId}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copyDebug}
+              className="underline hover:text-gray-700"
+              title="Copy debug JSON"
+            >
+              Copy debug
+            </button>
+            <button
+              type="button"
+              onClick={clearDebug}
+              className="underline hover:text-gray-700"
+              title="Clear debug"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       <Toast
         show={toast.show}

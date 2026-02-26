@@ -1,4 +1,4 @@
-//src/lib/affirmCheckouts.ts
+// src/lib/affirmCheckouts.ts
 export type CartItem = {
   id: string | number;
   title: string;
@@ -18,12 +18,14 @@ export type Customer = {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   address: {
     line1: string;
+    line2?: string;
     city: string;
-    state: string;
-    zip: string;
-    country?: string;
+    state: string; // 2 letters
+    zip: string;   // 5 digits or ZIP+4
+    country?: string; // default US
   };
 };
 
@@ -45,6 +47,27 @@ function toAbsoluteUrl(base: string, value?: string, fallbackPath = "/") {
   } catch {
     return new URL(fallbackPath, base).toString();
   }
+}
+
+function normalizeState(state: string) {
+  return String(state || "").trim().toUpperCase().slice(0, 2);
+}
+
+function normalizeZip(zip: string) {
+  const z = String(zip || "").trim();
+  // allow "12345" or "12345-6789"
+  const m = z.match(/^(\d{5})(-\d{4})?$/);
+  return m ? m[0] : z; // if user typed weird stuff, keep it (Affirm will reject)
+}
+
+function normalizeCountry(country?: string) {
+  const c = String(country || "US").trim().toUpperCase();
+  return c || "US";
+}
+
+function normalizeCity(city: string) {
+  // keep letters, spaces, dots, hyphens (avoid trailing/leading spaces)
+  return String(city || "").trim();
 }
 
 export function buildAffirmCheckout(
@@ -76,9 +99,7 @@ export function buildAffirmCheckout(
       item_url: toAbsoluteUrl(base, p.url, "/"),
     };
 
-    if (p.image) {
-      item.image_url = toAbsoluteUrl(base, p.image, "/");
-    }
+    if (p.image) item.image_url = toAbsoluteUrl(base, p.image, "/");
 
     return item;
   });
@@ -86,7 +107,6 @@ export function buildAffirmCheckout(
   const shippingC = Math.max(0, toCents(totals.shippingUSD ?? 0));
   const taxC = Math.max(0, toCents(totals.taxUSD ?? 0));
 
-  // Subtotal se calcula desde items ya normalizados para que coincida con unit_price * qty
   const subtotalC = mapped.reduce((acc, it) => acc + it.unit_price * it.qty, 0);
   const totalC = subtotalC + shippingC + taxC;
 
@@ -95,21 +115,24 @@ export function buildAffirmCheckout(
     last: String(customer.lastName || "").trim(),
   };
 
+  const country = normalizeCountry(customer.address.country);
+
+  // ✅ Address object shaped to satisfy typical Affirm validators
   const address = {
     line1: String(customer.address.line1 || "").trim(),
-    city: String(customer.address.city || "").trim(),
-    state: String(customer.address.state || "")
-      .trim()
-      .toUpperCase(),
-    zipcode: String(customer.address.zip || "").trim(),
-    country: String(customer.address.country || "US")
-      .trim()
-      .toUpperCase(),
+    line2: String(customer.address.line2 || "").trim() || undefined,
+    city: normalizeCity(customer.address.city),
+    state: normalizeState(customer.address.state),
+    zipcode: normalizeZip(customer.address.zip),
+    country, // keep for compatibility
+    country_code: country, // many Affirm schemas accept/expect this
   };
+
+  const email = String(customer.email || "").trim();
+  const phone = String(customer.phone || "").trim() || undefined;
 
   return {
     merchant: {
-      // Rutas SPA seguras por defecto (evitan 404 si no existen archivos .html en /public/affirm/)
       user_confirmation_url: toAbsoluteUrl(base, "/checkout/affirm/confirm", "/"),
       user_cancel_url: toAbsoluteUrl(base, "/checkout/affirm/cancel", "/"),
       user_confirmation_url_action: "GET",
@@ -121,14 +144,18 @@ export function buildAffirmCheckout(
     tax_amount: taxC,
     total: totalC,
     metadata: { mode: "modal" },
+
     billing: {
       name,
       address,
-      email: String(customer.email || "").trim(),
+      email,
+      ...(phone ? { phone_number: phone } : {}),
     },
+
     shipping: {
       name,
       address,
+      ...(phone ? { phone_number: phone } : {}),
     },
   };
 }

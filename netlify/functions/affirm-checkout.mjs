@@ -1,10 +1,15 @@
 // netlify/functions/affirm-checkout.mjs
+
 function json(statusCode, body) {
   return {
     statusCode,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      // CORS (por si querés probar desde browser)
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-headers": "content-type",
     },
     body: JSON.stringify(body),
   };
@@ -27,6 +32,7 @@ function getBasicAuthHeader() {
 
   if (!pub || !priv) return null;
 
+  // Affirm: PUBLIC:PRIVATE
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
@@ -62,27 +68,18 @@ export async function handler(event) {
   });
 
   try {
-    if (event.httpMethod === "OPTIONS") {
-      return json(204, { ok: true });
-    }
-
-    if (event.httpMethod !== "POST") {
-      return json(405, { error: "Method not allowed" });
-    }
+    if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
+    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
     const auth = getBasicAuthHeader();
     if (!auth) {
-      return json(500, {
-        error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY",
-      });
+      return json(500, { error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY" });
     }
 
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
 
     const payload = parseJsonSafe(event.body);
-    if (!payload) {
-      return json(400, { error: "Invalid JSON body" });
-    }
+    if (!payload) return json(400, { error: "Invalid JSON body" });
 
     const debug_id = payload.debug_id ? String(payload.debug_id).trim() : null;
 
@@ -122,13 +119,14 @@ export async function handler(event) {
 
     let res;
     try {
+      // ✅ IMPORTANTE: Affirm /checkout espera { checkout: {...} }
       res = await fetch(`${base}/checkout`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: auth,
         },
-        body: JSON.stringify(checkout),
+        body: JSON.stringify({ checkout }),
         signal: controller.signal,
       });
     } finally {

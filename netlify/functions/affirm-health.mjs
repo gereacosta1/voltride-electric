@@ -6,7 +6,6 @@ function json(statusCode, body) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      // CORS (para poder llamar desde navegador si querés)
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "GET,POST,OPTIONS",
       "access-control-allow-headers": "content-type",
@@ -17,14 +16,17 @@ function json(statusCode, body) {
 
 function normalizeAffirmBase(raw) {
   const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
-  // acepta https://api.affirm.com o https://api.affirm.com/api/v2
   if (base.endsWith("/api/v2")) return base;
   return `${base}/api/v2`;
 }
 
 function getBasicAuthHeader() {
-  const pub = String(process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || "").trim();
-  const priv = String(process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || "").trim();
+  const pub = String(
+    process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
+  ).trim();
+  const priv = String(
+    process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || ""
+  ).trim();
   if (!pub || !priv) return null;
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
@@ -44,7 +46,6 @@ export async function handler(event) {
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
     const auth = getBasicAuthHeader();
 
-    // 1) valida env vars sin exponer secretos
     const envCheck = {
       has_AFFIRM_BASE_URL: Boolean(String(process.env.AFFIRM_BASE_URL || "").trim()),
       has_AFFIRM_PUBLIC_KEY: Boolean(String(process.env.AFFIRM_PUBLIC_KEY || "").trim()),
@@ -60,7 +61,15 @@ export async function handler(event) {
       });
     }
 
-    // 2) probe A: /checkout (si auth está mal -> 401/403; si auth está OK -> 4xx por payload inválido)
+    // ✅ Dirección REAL del negocio (mejor que dummy)
+    const STORE_ADDRESS = {
+      line1: "11510 Biscayne Blvd",
+      city: "Miami",
+      state: "FL",
+      zipcode: "33181",
+      country_code: "US",
+    };
+
     const checkoutProbePayload = {
       checkout: {
         merchant: {
@@ -84,40 +93,29 @@ export async function handler(event) {
         total: 5000,
         billing: {
           name: { first: "Test", last: "Buyer" },
-          address: {
-            line1: "123 Main St",
-            city: "Miami",
-            state: "FL",
-            zipcode: "33101",
-            country_code: "US",
-          },
+          address: STORE_ADDRESS,
           email: "test@example.com",
         },
         shipping: {
           name: { first: "Test", last: "Buyer" },
-          address: {
-            line1: "123 Main St",
-            city: "Miami",
-            state: "FL",
-            zipcode: "33101",
-            country_code: "US",
-          },
+          address: STORE_ADDRESS,
         },
       },
     };
 
+    // ✅ IMPORTANTE: /checkout espera { checkout: {...} }
     const resCheckout = await fetch(`${base}/checkout`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify(checkoutProbePayload.checkout),
+      body: JSON.stringify(checkoutProbePayload),
     });
 
     const checkoutData = await readJsonOrText(resCheckout);
 
-    // 3) probe B: /charges con checkout_token dummy
+    // /charges con token dummy: auth OK => 4xx "Invalid Request" esperado
     const resCharges = await fetch(`${base}/charges`, {
       method: "POST",
       headers: {

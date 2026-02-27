@@ -6,9 +6,9 @@ function json(statusCode, body) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      // CORS (por si querés probar desde browser)
+      // CORS (si querés probar desde browser)
       "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-methods": "POST,OPTIONS",
       "access-control-allow-headers": "content-type",
     },
     body: JSON.stringify(body),
@@ -21,7 +21,7 @@ function normalizeAffirmBase(raw) {
   return `${base}/api/v2`;
 }
 
-function getBasicAuthHeader() {
+function getKeys() {
   const pub = String(
     process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
   ).trim();
@@ -30,6 +30,11 @@ function getBasicAuthHeader() {
     process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || ""
   ).trim();
 
+  return { pub, priv };
+}
+
+function getBasicAuthHeader() {
+  const { pub, priv } = getKeys();
   if (!pub || !priv) return null;
 
   // Affirm: PUBLIC:PRIVATE
@@ -46,19 +51,35 @@ function parseJsonSafe(raw) {
 
 async function readJsonOrText(res) {
   const ct = String(res.headers.get("content-type") || "").toLowerCase();
-  if (ct.includes("application/json")) {
-    return await res.json().catch(() => ({}));
-  }
+  if (ct.includes("application/json")) return await res.json().catch(() => ({}));
   const text = await res.text().catch(() => "");
   return { _non_json: true, text };
 }
 
+function ensureMerchantPublicKey(checkout, pubKey) {
+  if (!checkout || typeof checkout !== "object") return checkout;
+
+  const merchant = checkout.merchant && typeof checkout.merchant === "object"
+    ? checkout.merchant
+    : null;
+
+  if (!merchant) return checkout;
+
+  const current = String(merchant.public_api_key || merchant.publicApiKey || "").trim();
+  if (current) return checkout;
+
+  return {
+    ...checkout,
+    merchant: {
+      ...merchant,
+      public_api_key: pubKey,
+    },
+  };
+}
+
 export async function handler(event) {
   const startedAt = Date.now();
-  const reqId =
-    event.headers?.["x-nf-request-id"] ||
-    event.headers?.["x-request-id"] ||
-    null;
+  const reqId = event.headers?.["x-nf-request-id"] || event.headers?.["x-request-id"] || null;
 
   console.log("[affirm-checkout] incoming", {
     reqId,
@@ -68,11 +89,25 @@ export async function handler(event) {
   });
 
   try {
-    if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
+    if (event.httpMethod === "OPTIONS") {
+      return {
+        statusCode: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "POST,OPTIONS",
+          "access-control-allow-headers": "content-type",
+          "cache-control": "no-store",
+        },
+        body: "",
+      };
+    }
+
     if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
 
     const auth = getBasicAuthHeader();
-    if (!auth) {
+    const { pub } = getKeys();
+
+    if (!auth || !pub) {
       return json(500, { error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY" });
     }
 
@@ -83,7 +118,8 @@ export async function handler(event) {
 
     const debug_id = payload.debug_id ? String(payload.debug_id).trim() : null;
 
-    const checkout = payload.checkout;
+    // ✅ Tu API interna recibe { checkout: {...} }
+    let checkout = payload.checkout;
 
     if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
       return json(400, { error: "Missing checkout" });
@@ -94,14 +130,13 @@ export async function handler(event) {
     }
 
     const total = Number(checkout.total);
-    if (!Number.isFinite(total) || total <= 0) {
-      return json(400, { error: "Invalid checkout.total" });
-    }
+    if (!Number.isFinite(total) || total <= 0) return json(400, { error: "Invalid checkout.total" });
 
     const currency = String(checkout.currency || "USD").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) {
-      return json(400, { error: "Invalid checkout.currency" });
-    }
+    if (!/^[A-Z]{3}$/.test(currency)) return json(400, { error: "Invalid checkout.currency" });
+
+    // ✅ Asegura merchant.public_api_key (evita errores raros en /checkout)
+    checkout = ensureMerchantPublicKey(checkout, pub);
 
     console.log("[affirm-checkout] request", {
       reqId,
@@ -112,6 +147,7 @@ export async function handler(event) {
       currency,
       has_billing: Boolean(checkout.billing),
       has_shipping: Boolean(checkout.shipping),
+      has_merchant_public_api_key: Boolean(checkout?.merchant?.public_api_key),
     });
 
     const controller = new AbortController();
@@ -119,14 +155,14 @@ export async function handler(event) {
 
     let res;
     try {
-      // ✅ IMPORTANTE: Affirm /checkout espera { checkout: {...} }
+      // ✅ CORRECTO: a Affirm se manda EL CHECKOUT DIRECTO (NO wrapper)
       res = await fetch(`${base}/checkout`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: auth,
         },
-        body: JSON.stringify({ checkout }),
+        body: JSON.stringify(checkout),
         signal: controller.signal,
       });
     } finally {
@@ -155,30 +191,19 @@ export async function handler(event) {
         duration_ms: Date.now() - startedAt,
       });
 
-      return json(res.status, {
-        error: "Affirm checkout failed",
-        status: res.status,
-        details: data,
-      });
+      return json(res.status, { error: "Affirm checkout failed", status: res.status, details: data });
     }
 
-    return json(200, {
-      ok: true,
-      status: res.status,
-      data,
-    });
+    return json(200, { ok: true, status: res.status, data });
   } catch (err) {
-    const isAbort =
-      err && (err.name === "AbortError" || String(err).includes("AbortError"));
+    const isAbort = err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-checkout] fatal", {
-      reqId,
+      reqId: event.headers?.["x-nf-request-id"] || null,
       error: isAbort ? "Request timeout" : String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });
 
-    return json(isAbort ? 504 : 500, {
-      error: isAbort ? "Affirm request timeout" : "Server error",
-    });
+    return json(isAbort ? 504 : 500, { error: isAbort ? "Affirm request timeout" : "Server error" });
   }
 }

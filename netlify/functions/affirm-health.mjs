@@ -20,15 +20,28 @@ function normalizeAffirmBase(raw) {
   return `${base}/api/v2`;
 }
 
-function getBasicAuthHeader() {
+function getKeys() {
   const pub = String(
     process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
   ).trim();
+
   const priv = String(
     process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || ""
   ).trim();
+
+  return { pub, priv };
+}
+
+function getBasicAuthHeader() {
+  const { pub, priv } = getKeys();
   if (!pub || !priv) return null;
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
+}
+
+function keyPreview(k) {
+  const s = String(k || "").trim();
+  if (!s) return "";
+  return s.slice(0, 6) + "…" + s.slice(-4);
 }
 
 async function readJsonOrText(res) {
@@ -44,12 +57,14 @@ export async function handler(event) {
     if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed" });
 
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
+    const { pub, priv } = getKeys();
     const auth = getBasicAuthHeader();
 
     const envCheck = {
       has_AFFIRM_BASE_URL: Boolean(String(process.env.AFFIRM_BASE_URL || "").trim()),
-      has_AFFIRM_PUBLIC_KEY: Boolean(String(process.env.AFFIRM_PUBLIC_KEY || "").trim()),
-      has_AFFIRM_PRIVATE_KEY: Boolean(String(process.env.AFFIRM_PRIVATE_KEY || "").trim()),
+      has_AFFIRM_PUBLIC_KEY: Boolean(pub),
+      has_AFFIRM_PRIVATE_KEY: Boolean(priv),
+      affirm_public_key_preview: keyPreview(pub),
     };
 
     if (!auth) {
@@ -61,61 +76,60 @@ export async function handler(event) {
       });
     }
 
-    // ✅ Dirección REAL del negocio (mejor que dummy)
+    // ✅ Dirección real del negocio
     const STORE_ADDRESS = {
       line1: "11510 Biscayne Blvd",
-      city: "Miami",
+      city: "North Miami",
       state: "FL",
       zipcode: "33181",
       country_code: "US",
     };
 
-    const checkoutProbePayload = {
-      checkout: {
-        merchant: {
-          name: "VOLTRIDE ELECTRIC LLC",
-          user_confirmation_url: "https://voltride.agency/checkout/affirm/confirm",
-          user_cancel_url: "https://voltride.agency/checkout/affirm/cancel",
-          user_confirmation_url_action: "GET",
-        },
-        items: [
-          {
-            display_name: "Health Check Item",
-            sku: "HEALTH-1",
-            unit_price: 5000,
-            qty: 1,
-            item_url: "https://voltride.agency/",
-          },
-        ],
-        currency: "USD",
-        shipping_amount: 0,
-        tax_amount: 0,
-        total: 5000,
-        billing: {
-          name: { first: "Test", last: "Buyer" },
-          address: STORE_ADDRESS,
-          email: "test@example.com",
-        },
-        shipping: {
-          name: { first: "Test", last: "Buyer" },
-          address: STORE_ADDRESS,
-        },
+    // ✅ A Affirm se manda checkout DIRECTO (sin wrapper)
+    const checkoutProbe = {
+      merchant: {
+        name: "VOLTRIDE ELECTRIC LLC",
+        public_api_key: pub, // ayuda a detectar key incorrecta rápido
+        user_confirmation_url: "https://voltride.agency/checkout/affirm/confirm",
+        user_cancel_url: "https://voltride.agency/checkout/affirm/cancel",
+        user_confirmation_url_action: "GET",
       },
+      items: [
+        {
+          display_name: "Health Check Item",
+          sku: "HEALTH-1",
+          unit_price: 5000,
+          qty: 1,
+          item_url: "https://voltride.agency/",
+        },
+      ],
+      currency: "USD",
+      shipping_amount: 0,
+      tax_amount: 0,
+      total: 5000,
+      billing: {
+        name: { first: "Test", last: "Buyer" },
+        address: STORE_ADDRESS,
+        email: "test@example.com",
+      },
+      shipping: {
+        name: { first: "Test", last: "Buyer" },
+        address: STORE_ADDRESS,
+      },
+      metadata: { mode: "modal" },
     };
 
-    // ✅ IMPORTANTE: /checkout espera { checkout: {...} }
     const resCheckout = await fetch(`${base}/checkout`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify(checkoutProbePayload),
+      body: JSON.stringify(checkoutProbe),
     });
 
     const checkoutData = await readJsonOrText(resCheckout);
 
-    // /charges con token dummy: auth OK => 4xx "Invalid Request" esperado
     const resCharges = await fetch(`${base}/charges`, {
       method: "POST",
       headers: {
@@ -133,6 +147,9 @@ export async function handler(event) {
 
     const chargesData = await readJsonOrText(resCharges);
 
+    const hint = (status) =>
+      status === 401 || status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL";
+
     return json(200, {
       ok: true,
       envCheck,
@@ -141,27 +158,18 @@ export async function handler(event) {
         checkout: {
           status: resCheckout.status,
           ok: resCheckout.ok,
-          hint:
-            resCheckout.status === 401 || resCheckout.status === 403
-              ? "AUTH_FAIL"
-              : "AUTH_OK_OR_VALIDATION_FAIL",
+          hint: hint(resCheckout.status),
           data: checkoutData,
         },
         charges: {
           status: resCharges.status,
           ok: resCharges.ok,
-          hint:
-            resCharges.status === 401 || resCharges.status === 403
-              ? "AUTH_FAIL"
-              : "AUTH_OK_OR_INVALID_REQUEST_EXPECTED",
+          hint: hint(resCharges.status),
           data: chargesData,
         },
       },
     });
   } catch (err) {
-    return json(500, {
-      ok: false,
-      error: String(err?.message || err),
-    });
+    return json(500, { ok: false, error: String(err?.message || err) });
   }
 }

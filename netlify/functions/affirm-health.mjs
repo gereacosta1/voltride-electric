@@ -128,7 +128,7 @@ export async function handler(event) {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify(checkoutProbe),
+      body: JSON.stringify({ checkout: checkoutProbe }),
     });
 
     const checkoutData = await readJsonOrText(resCheckout);

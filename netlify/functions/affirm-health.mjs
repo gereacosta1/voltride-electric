@@ -51,6 +51,10 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
+function hintFromStatus(status) {
+  return status === 401 || status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL";
+}
+
 export async function handler(event) {
   try {
     if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
@@ -72,7 +76,8 @@ export async function handler(event) {
         ok: false,
         step: "env",
         envCheck,
-        message: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY in Netlify env vars",
+        message:
+          "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY in Netlify env vars",
       });
     }
 
@@ -85,11 +90,11 @@ export async function handler(event) {
       country_code: "US",
     };
 
-    // ✅ A Affirm se manda checkout DIRECTO (sin wrapper)
+    // ✅ Afirm /api/v2/checkout espera el CHECKOUT DIRECTO (SIN wrapper { checkout: ... })
     const checkoutProbe = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
-        public_api_key: pub, // ayuda a detectar key incorrecta rápido
+        public_api_key: pub, // 👈 esto hace que el error sea MUY claro si la key está mal
         user_confirmation_url: "https://voltride.agency/checkout/affirm/confirm",
         user_cancel_url: "https://voltride.agency/checkout/affirm/cancel",
         user_confirmation_url_action: "GET",
@@ -125,11 +130,12 @@ export async function handler(event) {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify(checkoutProbe),
+      body: JSON.stringify(checkoutProbe), // ✅ SIN wrapper
     });
 
     const checkoutData = await readJsonOrText(resCheckout);
 
+    // /api/v2/charges con token dummy: si AUTH está bien, normalmente devuelve 4xx (Invalid Request)
     const resCharges = await fetch(`${base}/charges`, {
       method: "POST",
       headers: {
@@ -147,9 +153,6 @@ export async function handler(event) {
 
     const chargesData = await readJsonOrText(resCharges);
 
-    const hint = (status) =>
-      status === 401 || status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL";
-
     return json(200, {
       ok: true,
       envCheck,
@@ -158,13 +161,13 @@ export async function handler(event) {
         checkout: {
           status: resCheckout.status,
           ok: resCheckout.ok,
-          hint: hint(resCheckout.status),
+          hint: hintFromStatus(resCheckout.status),
           data: checkoutData,
         },
         charges: {
           status: resCharges.status,
           ok: resCharges.ok,
-          hint: hint(resCharges.status),
+          hint: hintFromStatus(resCharges.status),
           data: chargesData,
         },
       },

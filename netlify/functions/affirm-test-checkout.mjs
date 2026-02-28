@@ -1,4 +1,5 @@
 // netlify/functions/affirm-test-checkout.mjs
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -22,14 +23,15 @@ function getKeys() {
   const pub = String(
     process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
   ).trim();
+
   const priv = String(
     process.env.AFFIRM_PRIVATE_KEY || process.env.AFFIRM_PRIVATE_API_KEY || ""
   ).trim();
+
   return { pub, priv };
 }
 
-function getBasicAuthHeader() {
-  const { pub, priv } = getKeys();
+function getBasicAuthHeader(pub, priv) {
   if (!pub || !priv) return null;
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
@@ -47,19 +49,29 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
+function hintFromStatus(status) {
+  return status === 401 || status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL";
+}
+
 export async function handler(event) {
+  const startedAt = Date.now();
+  const reqId =
+    event.headers?.["x-nf-request-id"] ||
+    event.headers?.["x-request-id"] ||
+    null;
+
   try {
     if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
     if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed" });
 
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
-    const { pub } = getKeys();
-    const auth = getBasicAuthHeader();
+    const { pub, priv } = getKeys();
+    const auth = getBasicAuthHeader(pub, priv);
 
     const envCheck = {
       has_AFFIRM_BASE_URL: Boolean(String(process.env.AFFIRM_BASE_URL || "").trim()),
       has_AFFIRM_PUBLIC_KEY: Boolean(pub),
-      has_AFFIRM_PRIVATE_KEY: Boolean(Boolean(getKeys().priv)),
+      has_AFFIRM_PRIVATE_KEY: Boolean(priv),
       affirm_public_key_preview: keyPreview(pub),
       affirm_base_url_effective: base,
     };
@@ -73,7 +85,9 @@ export async function handler(event) {
       });
     }
 
-    // Datos hardcode para prueba (no UI)
+    // Usa siempre HTTPS en callbacks (y en prod tu dominio ya es https)
+    const origin = "https://voltride.agency";
+
     const TEST_ADDRESS = {
       line1: "11510 Biscayne Blvd",
       city: "North Miami",
@@ -82,14 +96,15 @@ export async function handler(event) {
       country_code: "US",
     };
 
+    // ✅ Checkout DIRECTO (sin wrapper)
+    // ✅ NO mandamos merchant.public_api_key (evita mismatches)
+    // ✅ Si shipping_amount es 0, no mandamos shipping
     const checkout = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
-        user_confirmation_url: "https://voltride.agency/checkout/affirm/confirm",
-        user_cancel_url: "https://voltride.agency/checkout/affirm/cancel",
+        user_confirmation_url: `${origin}/checkout/affirm/confirm`,
+        user_cancel_url: `${origin}/checkout/affirm/cancel`,
         user_confirmation_url_action: "GET",
-        // ✅ forzamos public_api_key siempre en server
-        public_api_key: pub,
       },
       items: [
         {
@@ -97,7 +112,7 @@ export async function handler(event) {
           sku: "TEST-1",
           unit_price: 5000,
           qty: 1,
-          item_url: "https://voltride.agency/",
+          item_url: `${origin}/`,
         },
       ],
       currency: "USD",
@@ -109,12 +124,18 @@ export async function handler(event) {
         address: TEST_ADDRESS,
         email: "test@example.com",
       },
-      shipping: {
-        name: { first: "Test", last: "Buyer" },
-        address: TEST_ADDRESS,
-      },
       metadata: { mode: "modal" },
     };
+
+    console.log("[affirm-test-checkout] request", {
+      reqId,
+      base,
+      total: checkout.total,
+      currency: checkout.currency,
+      items_count: checkout.items?.length || 0,
+      has_auth: true,
+      duration_ms: Date.now() - startedAt,
+    });
 
     const res = await fetch(`${base}/checkout`, {
       method: "POST",
@@ -127,15 +148,30 @@ export async function handler(event) {
 
     const data = await readJsonOrText(res);
 
+    console.log("[affirm-test-checkout] response", {
+      reqId,
+      status: res.status,
+      ok: res.ok,
+      has_checkout_token: Boolean(data?.checkout_token),
+      has_redirect_url: Boolean(data?.redirect_url),
+      non_json: Boolean(data?._non_json),
+      duration_ms: Date.now() - startedAt,
+    });
+
     return json(res.ok ? 200 : res.status, {
       ok: res.ok,
       envCheck,
       status: res.status,
-      hint: res.status === 401 || res.status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL",
-      // Si está ok, acá debería venir checkout_token / redirect_url
+      hint: hintFromStatus(res.status),
       data,
     });
   } catch (err) {
+    console.error("[affirm-test-checkout] fatal", {
+      reqId,
+      error: String(err?.message || err),
+      duration_ms: Date.now() - startedAt,
+    });
+
     return json(500, { ok: false, error: String(err?.message || err) });
   }
 }

@@ -95,7 +95,7 @@ export async function handler(event) {
       country_code: "US",
     };
 
-    // Construimos checkout “correcto”
+    // Checkout payload (Direct)
     const checkoutDirect = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
@@ -124,30 +124,40 @@ export async function handler(event) {
       metadata: { mode: "modal" },
     };
 
-    // ✅ Defensivo: si por cualquier motivo hay wrapper {checkout: {...}}, lo desenvuelve
-    // (esto te salva aunque otra parte del código lo envuelva sin querer)
+    // Defensivo por si alguien lo envuelve (no debería pasar acá, pero queda)
     const payload =
       checkoutDirect && typeof checkoutDirect === "object" && checkoutDirect.checkout
         ? checkoutDirect.checkout
         : checkoutDirect;
 
     const payloadTopKeys = Object.keys(payload || {});
+
     console.log("[affirm-test-checkout] request", {
       reqId,
       base,
+      endpoint: `${base}/checkout/direct`,
       payloadTopKeys,
       total: payload?.total,
-      duration_ms: Date.now() - startedAt,
     });
 
-    const res = await fetch(`${base}/checkout`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: auth,
-      },
-      body: JSON.stringify(payload), // <-- CLAVE: NO WRAPPER
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    let res;
+    try {
+      // ✅ ENDPOINT CORRECTO
+      res = await fetch(`${base}/checkout/direct`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: auth,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const data = await readJsonOrText(res);
 
@@ -155,6 +165,9 @@ export async function handler(event) {
       reqId,
       status: res.status,
       ok: res.ok,
+      has_checkout_token: Boolean(data?.checkout_token),
+      has_redirect_url: Boolean(data?.redirect_url),
+      affirm_code: data?.code || data?.details?.code || null,
       affirm_field: data?.field || data?.details?.field || null,
       duration_ms: Date.now() - startedAt,
     });
@@ -162,17 +175,25 @@ export async function handler(event) {
     return json(res.ok ? 200 : res.status, {
       ok: res.ok,
       envCheck,
-      sent_payload_top_keys: payloadTopKeys, // <-- te lo muestro en la respuesta
+      sent_payload_top_keys: payloadTopKeys,
       status: res.status,
       hint: hintFromStatus(res.status),
       data,
-    });
-  } catch (err) {
-    console.error("[affirm-test-checkout] fatal", {
-      reqId,
-      error: String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });
-    return json(500, { ok: false, error: String(err?.message || err) });
+  } catch (err) {
+    const isAbort =
+      err && (err.name === "AbortError" || String(err).includes("AbortError"));
+
+    console.error("[affirm-test-checkout] fatal", {
+      reqId,
+      error: isAbort ? "Request timeout" : String(err?.message || err),
+      duration_ms: Date.now() - startedAt,
+    });
+
+    return json(isAbort ? 504 : 500, {
+      ok: false,
+      error: isAbort ? "Affirm request timeout" : String(err?.message || err),
+    });
   }
 }

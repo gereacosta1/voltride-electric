@@ -5,6 +5,10 @@ function json(statusCode, body) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      // ✅ CORS
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "POST,OPTIONS",
+      "access-control-allow-headers": "content-type",
     },
     body: JSON.stringify(body),
   };
@@ -54,7 +58,6 @@ export async function handler(event) {
     event.headers?.["x-request-id"] ||
     null;
 
-  // Log de entrada básico para verificar que realmente llega tráfico
   console.log("[affirm-authorize] incoming", {
     reqId,
     method: event.httpMethod,
@@ -64,7 +67,16 @@ export async function handler(event) {
 
   try {
     if (event.httpMethod === "OPTIONS") {
-      return json(204, { ok: true });
+      return {
+        statusCode: 204,
+        headers: {
+          "cache-control": "no-store",
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "POST,OPTIONS",
+          "access-control-allow-headers": "content-type",
+        },
+        body: "",
+      };
     }
 
     if (event.httpMethod !== "POST") {

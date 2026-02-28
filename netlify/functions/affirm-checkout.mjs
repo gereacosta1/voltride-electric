@@ -6,7 +6,6 @@ function json(statusCode, body) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      // CORS (si querés probar desde browser)
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "POST,OPTIONS",
       "access-control-allow-headers": "content-type",
@@ -36,8 +35,6 @@ function getKeys() {
 function getBasicAuthHeader() {
   const { pub, priv } = getKeys();
   if (!pub || !priv) return null;
-
-  // Affirm: PUBLIC:PRIVATE
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
@@ -56,22 +53,22 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
-function ensureMerchantPublicKey(checkout, pubKey) {
-  if (!checkout || typeof checkout !== "object") return checkout;
+// ✅ FORZAR SIEMPRE la public key del server (no confiar en lo que manda el browser)
+function forceMerchantPublicKey(checkout, pubKey) {
+  if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) return checkout;
 
-  const merchant = checkout.merchant && typeof checkout.merchant === "object"
-    ? checkout.merchant
-    : null;
+  const merchant =
+    checkout.merchant && typeof checkout.merchant === "object" && !Array.isArray(checkout.merchant)
+      ? checkout.merchant
+      : {};
 
-  if (!merchant) return checkout;
-
-  const current = String(merchant.public_api_key || merchant.publicApiKey || "").trim();
-  if (current) return checkout;
+  // limpiar campos alternativos para evitar conflictos
+  const { publicApiKey, ...merchantRest } = merchant;
 
   return {
     ...checkout,
     merchant: {
-      ...merchant,
+      ...merchantRest,
       public_api_key: pubKey,
     },
   };
@@ -118,7 +115,6 @@ export async function handler(event) {
 
     const debug_id = payload.debug_id ? String(payload.debug_id).trim() : null;
 
-    // ✅ Tu API interna recibe { checkout: {...} }
     let checkout = payload.checkout;
 
     if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
@@ -135,8 +131,8 @@ export async function handler(event) {
     const currency = String(checkout.currency || "USD").trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) return json(400, { error: "Invalid checkout.currency" });
 
-    // ✅ Asegura merchant.public_api_key (evita errores raros en /checkout)
-    checkout = ensureMerchantPublicKey(checkout, pub);
+    // ✅ clave: siempre forzar la public_api_key correcta
+    checkout = forceMerchantPublicKey(checkout, pub);
 
     console.log("[affirm-checkout] request", {
       reqId,
@@ -155,7 +151,6 @@ export async function handler(event) {
 
     let res;
     try {
-      // ✅ CORRECTO: a Affirm se manda EL CHECKOUT DIRECTO (NO wrapper)
       res = await fetch(`${base}/checkout`, {
         method: "POST",
         headers: {

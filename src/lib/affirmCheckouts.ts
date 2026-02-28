@@ -35,13 +35,11 @@ function safeBase(origin?: string) {
   const raw =
     String(origin || "").trim() ||
     (typeof window !== "undefined" ? window.location.origin : "");
-  // asegura sin trailing slash
   return raw.replace(/\/+$/, "");
 }
 
 function toAbsoluteUrl(base: string, value?: string, fallbackPath = "/") {
   const raw = String(value || "").trim();
-
   try {
     if (!raw) return new URL(fallbackPath, base).toString();
     return new URL(raw, base).toString();
@@ -69,6 +67,14 @@ function normalizeCity(city: string) {
   return String(city || "").trim();
 }
 
+function normalizePhone(phone?: string) {
+  const p = String(phone || "").trim();
+  if (!p) return undefined;
+  // deja solo dígitos + opcional + al inicio (por si viene +1...)
+  const cleaned = p.replace(/[^\d+]/g, "");
+  return cleaned || undefined;
+}
+
 export function buildAffirmCheckout(
   items: CartItem[],
   totals: Totals,
@@ -89,9 +95,7 @@ export function buildAffirmCheckout(
       item_url: string;
       image_url?: string;
     } = {
-      display_name: String(p.title || `Item ${idx + 1}`)
-        .trim()
-        .slice(0, 120),
+      display_name: String(p.title || `Item ${idx + 1}`).trim().slice(0, 120),
       sku: String(p.id),
       unit_price: unitPrice,
       qty,
@@ -114,7 +118,7 @@ export function buildAffirmCheckout(
     last: String(customer.lastName || "").trim(),
   };
 
-  const country = normalizeCountry(customer.address.country);
+  const countryCode = normalizeCountry(customer.address.country);
 
   const address = {
     line1: String(customer.address.line1 || "").trim(),
@@ -122,15 +126,11 @@ export function buildAffirmCheckout(
     city: normalizeCity(customer.address.city),
     state: normalizeState(customer.address.state),
     zipcode: normalizeZip(customer.address.zip),
-    country,
-    country_code: country,
+    country_code: countryCode,
   };
 
   const email = String(customer.email || "").trim();
-  const phone = String(customer.phone || "").trim() || undefined;
-
-  // ✅ Si shipping es 0, evitamos mandar shipping address (reduce validaciones/errores innecesarios)
-  const includeShipping = shippingC > 0;
+  const phone = normalizePhone(customer.phone);
 
   const payload: any = {
     merchant: {
@@ -152,15 +152,14 @@ export function buildAffirmCheckout(
       email,
       ...(phone ? { phone_number: phone } : {}),
     },
-  };
 
-  if (includeShipping) {
-    payload.shipping = {
+    // ✅ Mandar shipping SIEMPRE (aunque shipping_amount sea 0) para evitar validaciones inconsistentes
+    shipping: {
       name,
       address,
       ...(phone ? { phone_number: phone } : {}),
-    };
-  }
+    },
+  };
 
   return payload;
 }

@@ -121,6 +121,26 @@ function tryParseJson(text: string): any | null {
   }
 }
 
+function getAffirmTokenFromResponse(payload: any): string {
+  const t = String(
+    payload?.data?.checkout_token ||
+      payload?.checkout_token ||
+      payload?.data?.token ||
+      ""
+  ).trim();
+  return t;
+}
+
+function getAffirmRedirectUrlFromResponse(payload: any): string {
+  const u = String(
+    payload?.data?.redirect_url ||
+      payload?.redirect_url ||
+      payload?.data?.redirect ||
+      ""
+  ).trim();
+  return u;
+}
+
 function Toast({
   show,
   type,
@@ -536,239 +556,246 @@ export default function AffirmButton({
   }
 
   async function startAffirmFlow() {
-    if (opening) return;
+  if (opening) return;
 
-    const affirm = (window as any).affirm;
+  const affirm = (window as any).affirm;
 
-    addDebugEvent("open_attempt", {
-      cart_items: mapped.length,
-      total_cents: totalC,
-      has_public_key: Boolean(PUBLIC_KEY),
-      env: ENV,
+  addDebugEvent("open_attempt", {
+    cart_items: mapped.length,
+    total_cents: totalC,
+    has_public_key: Boolean(PUBLIC_KEY),
+    env: ENV,
+  });
+  traceServer("open_attempt", {
+    cart_items: mapped.length,
+    total_cents: totalC,
+    has_public_key: Boolean(PUBLIC_KEY),
+    env: ENV,
+  }).catch(() => {});
+
+  if (!affirm?.checkout) {
+    addDebugEvent("affirm_not_ready");
+    traceServer("affirm_not_ready").catch(() => {});
+    showToast("error", "Affirm is not ready yet");
+    return;
+  }
+
+  if (!canPay) {
+    const why =
+      mapped.length === 0
+        ? "Your cart is empty."
+        : totalC < MIN_TOTAL_CENTS
+        ? "The total is too low for Affirm (min $50)."
+        : !ready
+        ? "Affirm is still loading."
+        : "Affirm is unavailable.";
+
+    addDebugEvent("cannot_pay", { why });
+    traceServer("cannot_pay", { why }).catch(() => {});
+
+    setModal({ open: true, title: "Affirm unavailable", body: why, retry: !ready });
+    return;
+  }
+
+  if (!buyerValid) {
+    addDebugEvent("buyer_invalid", {
+      email: sanitizeEmail(buyer.email),
+      has_name: Boolean(buyer.firstName && buyer.lastName),
+      has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
     });
-    traceServer("open_attempt", {
-      cart_items: mapped.length,
-      total_cents: totalC,
-      has_public_key: Boolean(PUBLIC_KEY),
-      env: ENV,
+    traceServer("buyer_invalid", {
+      email: sanitizeEmail(buyer.email),
+      has_name: Boolean(buyer.firstName && buyer.lastName),
+      has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
     }).catch(() => {});
+    setBuyerModalOpen(true);
+    return;
+  }
 
-    if (!affirm?.checkout) {
-      addDebugEvent("affirm_not_ready");
-      traceServer("affirm_not_ready").catch(() => {});
-      showToast("error", "Affirm is not ready yet");
-      return;
-    }
+  setModal({ open: false, title: "", body: "", retry: false });
+  setBuyerModalOpen(false);
 
-    if (!canPay) {
-      const why =
-        mapped.length === 0
-          ? "Your cart is empty."
-          : totalC < MIN_TOTAL_CENTS
-          ? "The total is too low for Affirm (min $50)."
-          : !ready
-          ? "Affirm is still loading."
-          : "Affirm is unavailable.";
+  const base = window.location.origin.replace("http://", "https://");
+  const customer = buildCustomerFromBuyer();
 
-      addDebugEvent("cannot_pay", { why });
-      traceServer("cannot_pay", { why }).catch(() => {});
+  const checkout = buildAffirmCheckout(
+    mapped,
+    { subtotalUSD: subtotalC / 100, shippingUSD, taxUSD },
+    customer,
+    base
+  );
 
-      setModal({ open: true, title: "Affirm unavailable", body: why, retry: !ready });
-      return;
-    }
+  addDebugEvent("checkout_built", {
+    total: Number(checkout.total),
+    shipping_amount: checkout.shipping_amount,
+    tax_amount: checkout.tax_amount,
+    currency: checkout.currency,
+    billing_email: sanitizeEmail(customer.email),
+  });
 
-    if (!buyerValid) {
-      addDebugEvent("buyer_invalid", {
-        email: sanitizeEmail(buyer.email),
-        has_name: Boolean(buyer.firstName && buyer.lastName),
-        has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
+  setOpening(true);
+
+  try {
+    // ✅ 1) Crear checkout en tu server (Netlify Function)
+    const resp = await fetch("/api/affirm-checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        debug_id: getOrInitDebugState().debugId,
+        checkout,
+      }),
+    });
+
+    const text = await safeReadText(resp);
+    const payload = tryParseJson(text) || text;
+
+    if (!resp.ok) {
+      const msg =
+        (payload as any)?.details?.message ||
+        (payload as any)?.details?.code ||
+        (payload as any)?.error ||
+        (typeof payload === "string" ? payload : "Affirm checkout failed");
+
+      addDebugEvent("server_checkout_http_error", {
+        status: resp.status,
+        message: String(msg).slice(0, 400),
       });
-      traceServer("buyer_invalid", {
-        email: sanitizeEmail(buyer.email),
-        has_name: Boolean(buyer.firstName && buyer.lastName),
-        has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
-      }).catch(() => {});
-      setBuyerModalOpen(true);
+
+      setModal({
+        open: true,
+        title: "Affirm checkout failed",
+        body: `${msg} (HTTP ${resp.status})`,
+        retry: true,
+      });
+      setOpening(false);
       return;
     }
 
-    setModal({ open: false, title: "", body: "", retry: false });
-    setBuyerModalOpen(false);
+    // ✅ 2) token / redirect_url
+    const token = getAffirmTokenFromResponse(payload);
+    const redirectUrl = getAffirmRedirectUrlFromResponse(payload);
 
-    const base = window.location.origin.replace("http://", "https://");
-    const customer = buildCustomerFromBuyer();
-
-    const checkout = buildAffirmCheckout(
-      mapped,
-      { subtotalUSD: subtotalC / 100, shippingUSD, taxUSD },
-      customer,
-      base
-    );
-
-    addDebugEvent("checkout_built", {
-      total: Number(checkout.total),
-      shipping_amount: checkout.shipping_amount,
-      tax_amount: checkout.tax_amount,
-      currency: checkout.currency,
-      billing_email: sanitizeEmail(customer.email),
+    addDebugEvent("server_checkout_ok", {
+      status: resp.status,
+      has_token: Boolean(token),
+      has_redirect_url: Boolean(redirectUrl),
     });
-    traceServer("checkout_built", {
-      total: Number(checkout.total),
-      shipping_amount: checkout.shipping_amount,
-      tax_amount: checkout.tax_amount,
-      currency: checkout.currency,
-      billing_email: sanitizeEmail(customer.email),
-    }).catch(() => {});
 
-    setOpening(true);
+    if (redirectUrl) {
+      window.location.href = redirectUrl;
+      return;
+    }
 
-    try {
-      affirm.checkout(checkout);
-      addDebugEvent("checkout_open");
-      traceServer("checkout_open").catch(() => {});
+    if (!token) {
+      setModal({
+        open: true,
+        title: "Affirm response incomplete",
+        body: "No checkout_token or redirect_url received from server.",
+        retry: true,
+      });
+      setOpening(false);
+      return;
+    }
 
-      affirm.checkout.open({
-        onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
-          const token = String(checkout_token || "").trim();
+    // ✅ 3) Abrir Affirm con token (modal)
+    affirm.checkout({ checkout_token: token });
+    affirm.checkout.open({
+      onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
+        const finalToken = String(checkout_token || token).trim();
 
-          addDebugEvent("onSuccess", {
-            ...sanitizeToken(token),
+        addDebugEvent("onSuccess", { ...sanitizeToken(finalToken) });
+
+        if (!finalToken) {
+          setModal({
+            open: true,
+            title: "Missing checkout token",
+            body: "Affirm completed, but no checkout token was returned.",
+            retry: true,
           });
-          traceServer("onSuccess", {
-            ...sanitizeToken(token),
-          }).catch(() => {});
+          setOpening(false);
+          return;
+        }
 
-          if (!token) {
-            setModal({
-              open: true,
-              title: "Missing checkout token",
-              body: "Affirm completed, but no checkout token was returned.",
-              retry: true,
-            });
-            setOpening(false);
-            return;
-          }
+        const orderId = "ORDER-" + Date.now();
 
-          const orderId = "ORDER-" + Date.now();
-
-          addDebugEvent("authorize_start", {
-            orderId,
-            amount_cents: Number(checkout.total),
+        try {
+          const r = await fetch("/api/affirm-authorize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              debug_id: getOrInitDebugState().debugId,
+              checkout_token: finalToken,
+              order_id: orderId,
+              amount_cents: Number(checkout.total),
+              currency: "USD",
+              capture: true,
+            }),
           });
-          traceServer("authorize_start", {
-            orderId,
-            amount_cents: Number(checkout.total),
-          }).catch(() => {});
 
-          try {
-            const r = await fetch("/api/affirm-authorize", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                debug_id: getOrInitDebugState().debugId,
-                checkout_token: token,
-                order_id: orderId,
-                amount_cents: Number(checkout.total),
-                currency: "USD",
-                capture: true,
-              }),
+          const t = await safeReadText(r);
+          const p = tryParseJson(t);
+
+          if (!r.ok) {
+            const detailsMsg =
+              p?.details?.message || p?.details?.code || p?.error || t || "Authorize failed";
+
+            addDebugEvent("authorize_http_error", {
+              status: r.status,
+              message: String(detailsMsg).slice(0, 300),
             });
-
-            const text = await safeReadText(r);
-            const payload = tryParseJson(text);
-
-            if (!r.ok) {
-              const detailsMsg =
-                payload?.details?.message ||
-                payload?.details?.code ||
-                payload?.error ||
-                text ||
-                "The server could not confirm the charge with Affirm.";
-
-              addDebugEvent("authorize_http_error", {
-                status: r.status,
-                message: String(detailsMsg).slice(0, 300),
-              });
-              traceServer("authorize_http_error", {
-                status: r.status,
-                message: String(detailsMsg).slice(0, 300),
-              }).catch(() => {});
-
-              setModal({
-                open: true,
-                title: "We could not confirm your request",
-                body: `${detailsMsg} (HTTP ${r.status})`,
-                retry: true,
-              });
-              return;
-            }
-
-            addDebugEvent("authorize_ok", { status: r.status });
-            traceServer("authorize_ok", { status: r.status }).catch(() => {});
-
-            showToast("success", "Affirm request submitted!");
-          } catch (err) {
-            addDebugEvent("authorize_network_error", {
-              message: String((err as any)?.message || err),
-            });
-            traceServer("authorize_network_error", {
-              message: String((err as any)?.message || err),
-            }).catch(() => {});
 
             setModal({
               open: true,
               title: "We could not confirm your request",
-              body: "There was a problem confirming with the server.",
+              body: `${detailsMsg} (HTTP ${r.status})`,
               retry: true,
             });
-          } finally {
-            setOpening(false);
+            return;
           }
-        },
 
-        onFail: () => {
-          addDebugEvent("onFail");
-          traceServer("onFail").catch(() => {});
+          addDebugEvent("authorize_ok", { status: r.status });
+          showToast("success", "Affirm request submitted!");
+        } finally {
           setOpening(false);
-          setModal({
-            open: true,
-            title: "Financing was not completed",
-            body: "You can try again.",
-            retry: true,
-          });
-        },
+        }
+      },
 
-        onValidationError: () => {
-          addDebugEvent("onValidationError");
-          traceServer("onValidationError").catch(() => {});
-          setOpening(false);
-          setBuyerModalOpen(true);
-        },
+      onFail: () => {
+        addDebugEvent("onFail");
+        setOpening(false);
+        setModal({
+          open: true,
+          title: "Financing was not completed",
+          body: "You can try again.",
+          retry: true,
+        });
+      },
 
-        onClose: () => {
-          addDebugEvent("onClose");
-          traceServer("onClose").catch(() => {});
-          setOpening(false);
-          setModal({
-            open: true,
-            title: "Process canceled",
-            body: "No charges were made. Would you like to try again?",
-            retry: true,
-          });
-        },
-      });
-    } catch (err) {
-      addDebugEvent("checkout_open_fatal", {
-        message: String((err as any)?.message || err),
-      });
-      traceServer("checkout_open_fatal", {
-        message: String((err as any)?.message || err),
-      }).catch(() => {});
+      onValidationError: () => {
+        addDebugEvent("onValidationError");
+        setOpening(false);
+        setBuyerModalOpen(true);
+      },
 
-      setOpening(false);
-      showToast("error", "Could not open Affirm.");
-    }
+      onClose: () => {
+        addDebugEvent("onClose");
+        setOpening(false);
+        setModal({
+          open: true,
+          title: "Process canceled",
+          body: "No charges were made. Would you like to try again?",
+          retry: true,
+        });
+      },
+    });
+  } catch (err) {
+    addDebugEvent("checkout_open_fatal", {
+      message: String((err as any)?.message || err),
+    });
+    setOpening(false);
+    showToast("error", "Could not start Affirm.");
   }
+}
 
   const label = !affirmEnabled
     ? "Affirm (disabled)"

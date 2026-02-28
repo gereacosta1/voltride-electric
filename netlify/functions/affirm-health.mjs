@@ -16,7 +16,6 @@ function json(statusCode, body) {
 
 function normalizeAffirmBase(raw) {
   const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
-  // Accept https://api.affirm.com or https://api.affirm.com/api/v2
   if (base.endsWith("/api/v2")) return base;
   return `${base}/api/v2`;
 }
@@ -78,7 +77,6 @@ export async function handler(event) {
       });
     }
 
-    // Dirección real del negocio
     const STORE_ADDRESS = {
       line1: "11510 Biscayne Blvd",
       city: "North Miami",
@@ -87,9 +85,7 @@ export async function handler(event) {
       country_code: "US",
     };
 
-    // ⚠️ IMPORTANTE:
-    // Para /api/v2/checkout se envía el CHECKOUT OBJECT DIRECTO (sin { checkout: ... } wrapper)
-    // y NO se manda merchant.public_api_key en el body (la auth va por Basic Auth header).
+    // Para /api/v2/checkout se envía el CHECKOUT OBJECT DIRECTO (sin { checkout: ... })
     const checkoutProbe = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
@@ -128,7 +124,7 @@ export async function handler(event) {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify({ checkout: checkoutProbe }),
+      body: JSON.stringify(checkoutProbe),
     });
 
     const checkoutData = await readJsonOrText(resCheckout);
@@ -161,7 +157,6 @@ export async function handler(event) {
           status: resCheckout.status,
           ok: resCheckout.ok,
           hint: hint(resCheckout.status),
-          // si está OK, acá suele venir checkout_token / redirect_url, etc
           data: checkoutData,
         },
         charges: {

@@ -85,7 +85,6 @@ export async function handler(event) {
       });
     }
 
-    // Usa siempre HTTPS en callbacks (y en prod tu dominio ya es https)
     const origin = "https://voltride.agency";
 
     const TEST_ADDRESS = {
@@ -96,10 +95,8 @@ export async function handler(event) {
       country_code: "US",
     };
 
-    // ✅ Checkout DIRECTO (sin wrapper)
-    // ✅ NO mandamos merchant.public_api_key (evita mismatches)
-    // ✅ Si shipping_amount es 0, no mandamos shipping
-    const checkout = {
+    // Construimos checkout “correcto”
+    const checkoutDirect = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
         user_confirmation_url: `${origin}/checkout/affirm/confirm`,
@@ -127,13 +124,19 @@ export async function handler(event) {
       metadata: { mode: "modal" },
     };
 
+    // ✅ Defensivo: si por cualquier motivo hay wrapper {checkout: {...}}, lo desenvuelve
+    // (esto te salva aunque otra parte del código lo envuelva sin querer)
+    const payload =
+      checkoutDirect && typeof checkoutDirect === "object" && checkoutDirect.checkout
+        ? checkoutDirect.checkout
+        : checkoutDirect;
+
+    const payloadTopKeys = Object.keys(payload || {});
     console.log("[affirm-test-checkout] request", {
       reqId,
       base,
-      total: checkout.total,
-      currency: checkout.currency,
-      items_count: checkout.items?.length || 0,
-      has_auth: true,
+      payloadTopKeys,
+      total: payload?.total,
       duration_ms: Date.now() - startedAt,
     });
 
@@ -143,7 +146,7 @@ export async function handler(event) {
         "content-type": "application/json",
         authorization: auth,
       },
-      body: JSON.stringify(checkout),
+      body: JSON.stringify(payload), // <-- CLAVE: NO WRAPPER
     });
 
     const data = await readJsonOrText(res);
@@ -152,15 +155,14 @@ export async function handler(event) {
       reqId,
       status: res.status,
       ok: res.ok,
-      has_checkout_token: Boolean(data?.checkout_token),
-      has_redirect_url: Boolean(data?.redirect_url),
-      non_json: Boolean(data?._non_json),
+      affirm_field: data?.field || data?.details?.field || null,
       duration_ms: Date.now() - startedAt,
     });
 
     return json(res.ok ? 200 : res.status, {
       ok: res.ok,
       envCheck,
+      sent_payload_top_keys: payloadTopKeys, // <-- te lo muestro en la respuesta
       status: res.status,
       hint: hintFromStatus(res.status),
       data,
@@ -171,7 +173,6 @@ export async function handler(event) {
       error: String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });
-
     return json(500, { ok: false, error: String(err?.message || err) });
   }
 }

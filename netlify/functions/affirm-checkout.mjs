@@ -143,6 +143,7 @@ export async function handler(event) {
     const currency = String(checkout.currency || "USD").trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) return json(400, { error: "Invalid checkout.currency" });
 
+    // ✅ siempre forzar la public_api_key correcta
     checkout = forceMerchantPublicKey(checkout, pub);
 
     console.log("[affirm-checkout] request", {
@@ -155,6 +156,9 @@ export async function handler(event) {
       has_billing: Boolean(checkout.billing),
       has_shipping: Boolean(checkout.shipping),
       has_merchant_public_api_key: Boolean(checkout?.merchant?.public_api_key),
+      has_user_confirmation_url: Boolean(checkout?.merchant?.user_confirmation_url),
+      has_user_cancel_url: Boolean(checkout?.merchant?.user_cancel_url),
+      user_confirmation_url_action: checkout?.merchant?.user_confirmation_url_action || null,
     });
 
     const controller = new AbortController();
@@ -168,8 +172,8 @@ export async function handler(event) {
           "content-type": "application/json",
           authorization: auth,
         },
-        // ✅ wrapper correcto
-        body: JSON.stringify({ checkout }),
+        // ✅ enviar el checkout PLANO (no wrapper)
+        body: JSON.stringify(checkout),
         signal: controller.signal,
       });
     } finally {

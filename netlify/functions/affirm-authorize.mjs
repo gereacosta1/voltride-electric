@@ -1,4 +1,5 @@
 // netlify/functions/affirm-authorize.mjs
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -114,11 +115,14 @@ export async function handler(event) {
       return json(400, { error: "Invalid currency" });
     }
 
+    // ✅ Affirm expects amounts as integer cents; ensure int.
+    const amount = Math.round(amount_cents);
+
     console.log("[affirm-authorize] request", {
       reqId,
       debug_id,
       order_id,
-      amount_cents,
+      amount_cents: amount,
       currency,
       capture,
       base,
@@ -136,10 +140,11 @@ export async function handler(event) {
           "content-type": "application/json",
           authorization: auth,
         },
+        // ✅ Some integrations require wrapping, but /charges expects direct payload.
         body: JSON.stringify({
           checkout_token,
           order_id,
-          amount: amount_cents,
+          amount,
           currency,
           capture,
         }),
@@ -151,13 +156,17 @@ export async function handler(event) {
 
     const data = await readJsonOrText(res);
 
+    // Normalize common IDs for logging
+    const affirmId =
+      (data && typeof data === "object" && (data.id || data.charge_id)) || null;
+
     console.log("[affirm-authorize] response", {
       reqId,
       debug_id,
       status: res.status,
       ok: res.ok,
       duration_ms: Date.now() - startedAt,
-      affirm_id: data?.id || data?.charge_id || null,
+      affirm_id: affirmId,
       non_json: Boolean(data?._non_json),
     });
 
@@ -187,7 +196,10 @@ export async function handler(event) {
       err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-authorize] fatal", {
-      reqId,
+      reqId:
+        event.headers?.["x-nf-request-id"] ||
+        event.headers?.["x-request-id"] ||
+        null,
       error: isAbort ? "Request timeout" : String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });

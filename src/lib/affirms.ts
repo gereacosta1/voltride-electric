@@ -16,7 +16,7 @@ function getAffirmScriptUrl(env: "prod" | "sandbox") {
     : "https://cdn1.affirm.com/js/v2/affirm.js";
 }
 
-function waitForAffirmReady(timeoutMs = 10000): Promise<void> {
+function waitForAffirmReady(timeoutMs = 15000): Promise<void> {
   return new Promise((resolve, reject) => {
     const started = Date.now();
 
@@ -48,7 +48,10 @@ function removeExistingAffirmScript(src?: string | null) {
   }
 }
 
-export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") {
+export function loadAffirm(
+  publicKey: string,
+  env: "prod" | "sandbox" = "prod"
+) {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("No window"));
   }
@@ -60,7 +63,7 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
 
   const scriptSrc = getAffirmScriptUrl(env);
 
-  // Ya está listo con esta misma config
+  // Already ready with the same config
   if (
     window.affirm?.checkout &&
     loadedScriptSrc === scriptSrc &&
@@ -69,12 +72,12 @@ export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") 
     return Promise.resolve();
   }
 
-  // Ya hay una carga en curso para la misma config
+  // A load is already in progress for the same config
   if (loading && loadedScriptSrc === scriptSrc && loadedPublicKey === trimmedKey) {
     return loading;
   }
 
-  // Cambio de config -> reset
+  // Config changed -> reset
   if (
     (loadedScriptSrc && loadedScriptSrc !== scriptSrc) ||
     (loadedPublicKey && loadedPublicKey !== trimmedKey)

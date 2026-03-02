@@ -53,7 +53,7 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
-// ✅ FORZAR SIEMPRE la public key del server (no confiar en lo que manda el browser)
+// Forzar la public key del server (no confiar en lo que manda el browser)
 function forceMerchantPublicKey(checkout, pubKey) {
   if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) return checkout;
 
@@ -63,7 +63,7 @@ function forceMerchantPublicKey(checkout, pubKey) {
       : {};
 
   // limpiar campos alternativos para evitar conflictos
-  const { publicApiKey, ...merchantRest } = merchant;
+  const { publicApiKey, public_api_key, ...merchantRest } = merchant;
 
   return {
     ...checkout,
@@ -71,6 +71,18 @@ function forceMerchantPublicKey(checkout, pubKey) {
       ...merchantRest,
       public_api_key: pubKey,
     },
+  };
+}
+
+function pickTokenAndRedirect(data) {
+  const checkout_token =
+    (data && typeof data === "object" && (data.checkout_token || data?.data?.checkout_token)) || "";
+  const redirect_url =
+    (data && typeof data === "object" && (data.redirect_url || data?.data?.redirect_url)) || "";
+
+  return {
+    checkout_token: String(checkout_token || "").trim(),
+    redirect_url: String(redirect_url || "").trim(),
   };
 }
 
@@ -131,7 +143,6 @@ export async function handler(event) {
     const currency = String(checkout.currency || "USD").trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) return json(400, { error: "Invalid checkout.currency" });
 
-    // ✅ clave: siempre forzar la public_api_key correcta
     checkout = forceMerchantPublicKey(checkout, pub);
 
     console.log("[affirm-checkout] request", {
@@ -157,7 +168,8 @@ export async function handler(event) {
           "content-type": "application/json",
           authorization: auth,
         },
-        body: JSON.stringify(checkout),
+        // ✅ wrapper correcto
+        body: JSON.stringify({ checkout }),
         signal: controller.signal,
       });
     } finally {
@@ -165,6 +177,7 @@ export async function handler(event) {
     }
 
     const data = await readJsonOrText(res);
+    const { checkout_token, redirect_url } = pickTokenAndRedirect(data);
 
     console.log("[affirm-checkout] response", {
       reqId,
@@ -172,8 +185,8 @@ export async function handler(event) {
       status: res.status,
       ok: res.ok,
       duration_ms: Date.now() - startedAt,
-      has_checkout_token: Boolean(data?.checkout_token),
-      has_redirect_url: Boolean(data?.redirect_url),
+      has_checkout_token: Boolean(checkout_token),
+      has_redirect_url: Boolean(redirect_url),
       non_json: Boolean(data?._non_json),
     });
 
@@ -186,7 +199,11 @@ export async function handler(event) {
         duration_ms: Date.now() - startedAt,
       });
 
-      return json(res.status, { error: "Affirm checkout failed", status: res.status, details: data });
+      return json(res.status, {
+        error: "Affirm checkout failed",
+        status: res.status,
+        details: data,
+      });
     }
 
     return json(200, { ok: true, status: res.status, data });
@@ -199,6 +216,8 @@ export async function handler(event) {
       duration_ms: Date.now() - startedAt,
     });
 
-    return json(isAbort ? 504 : 500, { error: isAbort ? "Affirm request timeout" : "Server error" });
+    return json(isAbort ? 504 : 500, {
+      error: isAbort ? "Affirm request timeout" : "Server error",
+    });
   }
 }

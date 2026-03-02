@@ -1,4 +1,5 @@
 // src/lib/affirmCheckouts.ts
+
 export type CartItem = {
   id: string | number;
   title: string;
@@ -25,7 +26,7 @@ export type Customer = {
     city: string;
     state: string; // 2 letters
     zip: string; // 5 digits or ZIP+4
-    country?: string; // default US
+    country?: string; // default US (ISO-3166-1 alpha-2)
   };
 };
 
@@ -60,6 +61,7 @@ function normalizeZip(zip: string) {
 
 function normalizeCountry(country?: string) {
   const c = String(country || "US").trim().toUpperCase();
+  // Affirm expects "country" as ISO2, e.g. "US"
   return c || "US";
 }
 
@@ -70,9 +72,13 @@ function normalizeCity(city: string) {
 function normalizePhone(phone?: string) {
   const p = String(phone || "").trim();
   if (!p) return undefined;
-  // deja solo dígitos + opcional + al inicio (por si viene +1...)
   const cleaned = p.replace(/[^\d+]/g, "");
   return cleaned || undefined;
+}
+
+function nonEmptyOrFallback(value: string, fallback: string) {
+  const v = String(value || "").trim();
+  return v.length ? v : fallback;
 }
 
 export function buildAffirmCheckout(
@@ -87,22 +93,27 @@ export function buildAffirmCheckout(
     const unitPrice = Math.max(0, toCents(Number(p.price) || 0));
     const qty = Math.max(1, Number(p.qty) || 1);
 
+    const display_name = nonEmptyOrFallback(
+      String(p.title || "").slice(0, 120),
+      `Item ${idx + 1}`
+    );
+
     const item: {
       display_name: string;
       sku: string;
       unit_price: number;
       qty: number;
       item_url: string;
-      image_url?: string;
+      item_image_url?: string;
     } = {
-      display_name: String(p.title || `Item ${idx + 1}`).trim().slice(0, 120),
+      display_name,
       sku: String(p.id),
       unit_price: unitPrice,
       qty,
       item_url: toAbsoluteUrl(base, p.url, "/"),
     };
 
-    if (p.image) item.image_url = toAbsoluteUrl(base, p.image, "/");
+    if (p.image) item.item_image_url = toAbsoluteUrl(base, p.image, "/");
 
     return item;
   });
@@ -118,15 +129,13 @@ export function buildAffirmCheckout(
     last: String(customer.lastName || "").trim(),
   };
 
-  const countryCode = normalizeCountry(customer.address.country);
-
   const address = {
     line1: String(customer.address.line1 || "").trim(),
     line2: String(customer.address.line2 || "").trim() || undefined,
     city: normalizeCity(customer.address.city),
     state: normalizeState(customer.address.state),
     zipcode: normalizeZip(customer.address.zip),
-    country_code: countryCode,
+    country: normalizeCountry(customer.address.country),
   };
 
   const email = String(customer.email || "").trim();
@@ -153,7 +162,7 @@ export function buildAffirmCheckout(
       ...(phone ? { phone_number: phone } : {}),
     },
 
-    // ✅ Mandar shipping SIEMPRE (aunque shipping_amount sea 0) para evitar validaciones inconsistentes
+    // Send shipping always (even if shipping_amount is 0)
     shipping: {
       name,
       address,

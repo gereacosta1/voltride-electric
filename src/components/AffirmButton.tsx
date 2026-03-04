@@ -68,7 +68,6 @@ function safeJsonStringify(v: any) {
 }
 
 function makeDebugId() {
-  // no crypto dependency; good enough for correlation
   return (
     "dbg_" +
     Date.now().toString(36) +
@@ -146,6 +145,39 @@ function getAffirmRedirectUrlFromResponse(payload: any): string {
       ""
   ).trim();
   return u;
+}
+
+// Extract best message + metadata from your server error shape
+function extractServerError(payload: any) {
+  const details = payload?.details ?? payload?.data ?? payload ?? null;
+
+  const code =
+    payload?.details?.code ||
+    payload?.code ||
+    details?.code ||
+    details?.error_code ||
+    null;
+
+  const field =
+    payload?.details?.field || payload?.field || details?.field || null;
+
+  const message =
+    payload?.details?.message ||
+    payload?.message ||
+    details?.message ||
+    payload?.error ||
+    "Affirm checkout failed";
+
+  const reqId = payload?.reqId || payload?.request_id || null;
+  const debug_id = payload?.debug_id || payload?.debugId || null;
+
+  return {
+    message: String(message || "Affirm checkout failed"),
+    code: code ? String(code) : null,
+    field: field ? String(field) : null,
+    reqId: reqId ? String(reqId) : null,
+    debug_id: debug_id ? String(debug_id) : null,
+  };
 }
 
 function Toast({
@@ -376,10 +408,10 @@ export default function AffirmButton({
   const PUBLIC_KEY = (import.meta.env.VITE_AFFIRM_PUBLIC_KEY || "").trim();
   const ENV = (import.meta.env.VITE_AFFIRM_ENV || "prod") as "prod" | "sandbox";
 
-  // Use direct Netlify Functions endpoints to avoid netlify.toml dependency.
-  const CHECKOUT_ENDPOINT = "/.netlify/functions/affirm-checkout";
-  const AUTHORIZE_ENDPOINT = "/.netlify/functions/affirm-authorize";
-  const TRACE_ENDPOINT = "/.netlify/functions/trace";
+  // Prefer /api routes (netlify.toml rewrites them to functions)
+  const CHECKOUT_ENDPOINT = "/api/affirm-checkout";
+  const AUTHORIZE_ENDPOINT = "/api/affirm-authorize";
+  const TRACE_ENDPOINT = "/api/trace";
 
   const [ready, setReady] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -399,8 +431,6 @@ export default function AffirmButton({
 
   const [buyerModalOpen, setBuyerModalOpen] = useState(false);
 
-  // Optional defaults for BUSINESS-only testing (no personal data).
-  // You can keep empty; the client can type their info.
   const [buyer, setBuyer] = useState<BuyerForm>(() => ({
     firstName: "",
     lastName: "",
@@ -411,11 +441,12 @@ export default function AffirmButton({
     zip: "",
   }));
 
-  // debug state (persisted)
   const [debugState, setDebugStateUI] = useState<DebugState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
-  // init debug storage once
+  // Track whether we already showed a "canceled" modal vs server error
+  const lastFailureRef = useRef<null | "server" | "client">(null);
+
   useEffect(() => {
     try {
       const st = getOrInitDebugState();
@@ -442,7 +473,6 @@ export default function AffirmButton({
   };
 
   const traceServer = async (step: string, data?: Record<string, any>) => {
-    // best-effort: do NOT block checkout if trace fails
     try {
       const st = getOrInitDebugState();
       const payload = {
@@ -540,7 +570,6 @@ export default function AffirmButton({
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [PUBLIC_KEY, ENV]);
 
   const buyerValid =
@@ -562,6 +591,7 @@ export default function AffirmButton({
         city: buyer.city.trim(),
         state: buyer.state.trim().toUpperCase(),
         zip: buyer.zip.trim(),
+        // kept for type compatibility; server payload uses country_code anyway
         country: "US",
       },
     };
@@ -571,6 +601,7 @@ export default function AffirmButton({
     if (opening) return;
 
     const affirm = (window as any).affirm;
+    lastFailureRef.current = null;
 
     addDebugEvent("open_attempt", {
       cart_items: mapped.length,
@@ -648,37 +679,50 @@ export default function AffirmButton({
     setOpening(true);
 
     try {
-      // 1) Crear checkout en tu server (Netlify Function)
+      // 1) Create checkout via server (Netlify Function)
+      const debug_id = getOrInitDebugState().debugId;
+
       const resp = await fetch(CHECKOUT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          debug_id: getOrInitDebugState().debugId,
-          checkout,
-        }),
+        body: JSON.stringify({ debug_id, checkout }),
       });
 
       const text = await safeReadText(resp);
-      const payload = tryParseJson(text) || text;
+      const parsed = tryParseJson(text);
+      const payload = parsed ?? { _raw: text };
 
       if (!resp.ok) {
-        const msg =
-          (payload as any)?.details?.message ||
-          (payload as any)?.details?.code ||
-          (payload as any)?.error ||
-          (typeof payload === "string" ? payload : "Affirm checkout failed");
+        lastFailureRef.current = "server";
+
+        const extracted = extractServerError(payload);
+        const pretty =
+          [
+            extracted.message,
+            extracted.code ? `code: ${extracted.code}` : null,
+            extracted.field ? `field: ${extracted.field}` : null,
+            extracted.reqId ? `reqId: ${extracted.reqId}` : null,
+            extracted.debug_id ? `debug: ${extracted.debug_id}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n") || `Affirm checkout failed (HTTP ${resp.status})`;
 
         addDebugEvent("server_checkout_http_error", {
           status: resp.status,
-          message: String(msg).slice(0, 400),
+          code: extracted.code,
+          field: extracted.field,
+          reqId: extracted.reqId,
+          debug_id: extracted.debug_id,
+          message: extracted.message?.slice(0, 400),
         });
 
         setModal({
           open: true,
           title: "Affirm checkout failed",
-          body: `${msg} (HTTP ${resp.status})`,
+          body: `${pretty}\n(HTTP ${resp.status})`,
           retry: true,
         });
+
         setOpening(false);
         return;
       }
@@ -691,6 +735,8 @@ export default function AffirmButton({
         status: resp.status,
         has_token: Boolean(token),
         has_redirect_url: Boolean(redirectUrl),
+        reqId: payload?.reqId || null,
+        debug_id: payload?.debug_id || debug_id,
       });
 
       if (redirectUrl) {
@@ -699,6 +745,7 @@ export default function AffirmButton({
       }
 
       if (!token) {
+        lastFailureRef.current = "server";
         setModal({
           open: true,
           title: "Affirm response incomplete",
@@ -709,12 +756,11 @@ export default function AffirmButton({
         return;
       }
 
-      // 3) Abrir Affirm con token (modal)
+      // 3) Open Affirm modal with token
       affirm.checkout({ checkout_token: token });
       affirm.checkout.open({
         onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
           const finalToken = String(checkout_token || token).trim();
-
           addDebugEvent("onSuccess", { ...sanitizeToken(finalToken) });
 
           if (!finalToken) {
@@ -745,25 +791,36 @@ export default function AffirmButton({
             });
 
             const t = await safeReadText(r);
-            const p = tryParseJson(t);
+            const p = tryParseJson(t) ?? { _raw: t };
 
             if (!r.ok) {
-              const detailsMsg =
-                p?.details?.message ||
-                p?.details?.code ||
-                p?.error ||
-                t ||
-                "Authorize failed";
+              lastFailureRef.current = "server";
+
+              const extracted = extractServerError(p);
+              const pretty =
+                [
+                  extracted.message,
+                  extracted.code ? `code: ${extracted.code}` : null,
+                  extracted.field ? `field: ${extracted.field}` : null,
+                  extracted.reqId ? `reqId: ${extracted.reqId}` : null,
+                  extracted.debug_id ? `debug: ${extracted.debug_id}` : null,
+                ]
+                  .filter(Boolean)
+                  .join("\n") || "Authorize failed";
 
               addDebugEvent("authorize_http_error", {
                 status: r.status,
-                message: String(detailsMsg).slice(0, 300),
+                code: extracted.code,
+                field: extracted.field,
+                reqId: extracted.reqId,
+                debug_id: extracted.debug_id,
+                message: extracted.message?.slice(0, 400),
               });
 
               setModal({
                 open: true,
                 title: "We could not confirm your request",
-                body: `${detailsMsg} (HTTP ${r.status})`,
+                body: `${pretty}\n(HTTP ${r.status})`,
                 retry: true,
               });
               return;
@@ -777,6 +834,7 @@ export default function AffirmButton({
         },
 
         onFail: () => {
+          lastFailureRef.current = "client";
           addDebugEvent("onFail");
           setOpening(false);
           setModal({
@@ -788,12 +846,19 @@ export default function AffirmButton({
         },
 
         onValidationError: () => {
+          lastFailureRef.current = "client";
           addDebugEvent("onValidationError");
           setOpening(false);
           setBuyerModalOpen(true);
         },
 
         onClose: () => {
+          // If we just failed on server-side, don't show "canceled" modal
+          if (lastFailureRef.current === "server") {
+            setOpening(false);
+            return;
+          }
+
           addDebugEvent("onClose");
           setOpening(false);
           setModal({
@@ -805,6 +870,7 @@ export default function AffirmButton({
         },
       });
     } catch (err) {
+      lastFailureRef.current = "client";
       addDebugEvent("checkout_open_fatal", {
         message: String((err as any)?.message || err),
       });
@@ -866,7 +932,6 @@ export default function AffirmButton({
         {label}
       </button>
 
-      {/* Debug controls (small, non-invasive) */}
       {debugState?.debugId && (
         <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500">
           <div className="truncate">

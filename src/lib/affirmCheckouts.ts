@@ -26,7 +26,7 @@ export type Customer = {
     city: string;
     state: string; // 2 letters
     zip: string; // 5 digits or ZIP+4
-    country?: string; // default US (ISO-3166-1 alpha-2)
+    country?: string; // unused for now (US only)
   };
 };
 
@@ -59,12 +59,6 @@ function normalizeZip(zip: string) {
   return m ? m[0] : z;
 }
 
-function normalizeCountry(country?: string) {
-  const c = String(country || "US").trim().toUpperCase();
-  // Affirm expects "country" as ISO2, e.g. "US"
-  return c || "US";
-}
-
 function normalizeCity(city: string) {
   return String(city || "").trim();
 }
@@ -81,6 +75,12 @@ function nonEmptyOrFallback(value: string, fallback: string) {
   return v.length ? v : fallback;
 }
 
+function looksLikeImageUrl(u: string) {
+  const s = String(u || "").toLowerCase();
+  // Avoid sending weird placeholders; allow common image extensions
+  return /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/.test(s);
+}
+
 export function buildAffirmCheckout(
   items: CartItem[],
   totals: Totals,
@@ -89,7 +89,7 @@ export function buildAffirmCheckout(
 ) {
   const base = safeBase(merchantBase);
 
-  const mapped = items.map((p, idx) => {
+  const mapped = (items || []).map((p, idx) => {
     const unitPrice = Math.max(0, toCents(Number(p.price) || 0));
     const qty = Math.max(1, Number(p.qty) || 1);
 
@@ -113,7 +113,10 @@ export function buildAffirmCheckout(
       item_url: toAbsoluteUrl(base, p.url, "/"),
     };
 
-    if (p.image) item.item_image_url = toAbsoluteUrl(base, p.image, "/");
+    if (p.image) {
+      const abs = toAbsoluteUrl(base, p.image, "/");
+      if (looksLikeImageUrl(abs)) item.item_image_url = abs;
+    }
 
     return item;
   });
@@ -135,7 +138,7 @@ export function buildAffirmCheckout(
     city: normalizeCity(customer.address.city),
     state: normalizeState(customer.address.state),
     zipcode: normalizeZip(customer.address.zip),
-    country: normalizeCountry(customer.address.country),
+    country_code: "US", // ✅ Affirm expects country_code
   };
 
   const email = String(customer.email || "").trim();

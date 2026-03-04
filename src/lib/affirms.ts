@@ -21,14 +21,12 @@ function waitForAffirmReady(timeoutMs = 15000): Promise<void> {
     const started = Date.now();
 
     const tick = () => {
-      if (window.affirm?.checkout) {
-        resolve();
-        return;
-      }
+      if (window.affirm?.checkout) return resolve();
 
       if (Date.now() - started > timeoutMs) {
-        reject(new Error("Affirm script loaded but checkout API did not initialize"));
-        return;
+        return reject(
+          new Error("Affirm script loaded but checkout API did not initialize")
+        );
       }
 
       window.setTimeout(tick, 50);
@@ -48,10 +46,11 @@ function removeExistingAffirmScript(src?: string | null) {
   }
 }
 
-export function loadAffirm(
-  publicKey: string,
-  env: "prod" | "sandbox" = "prod"
-) {
+function sameConfig(scriptSrc: string, publicKey: string) {
+  return loadedScriptSrc === scriptSrc && loadedPublicKey === publicKey;
+}
+
+export function loadAffirm(publicKey: string, env: "prod" | "sandbox" = "prod") {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("No window"));
   }
@@ -63,28 +62,28 @@ export function loadAffirm(
 
   const scriptSrc = getAffirmScriptUrl(env);
 
-  // Already ready with the same config
-  if (
-    window.affirm?.checkout &&
-    loadedScriptSrc === scriptSrc &&
-    loadedPublicKey === trimmedKey
-  ) {
+  // Already ready with same config
+  if (window.affirm?.checkout && sameConfig(scriptSrc, trimmedKey)) {
     return Promise.resolve();
   }
 
-  // A load is already in progress for the same config
-  if (loading && loadedScriptSrc === scriptSrc && loadedPublicKey === trimmedKey) {
+  // In-flight load for same config
+  if (loading && sameConfig(scriptSrc, trimmedKey)) {
     return loading;
   }
 
-  // Config changed -> reset
+  // Config changed -> reset (kill old script + globals)
   if (
     (loadedScriptSrc && loadedScriptSrc !== scriptSrc) ||
     (loadedPublicKey && loadedPublicKey !== trimmedKey)
   ) {
     loading = null;
-    window.affirm = undefined;
-    window._affirm_config = undefined;
+    try {
+      window.affirm = undefined;
+      window._affirm_config = undefined;
+    } catch {
+      // ignore
+    }
     removeExistingAffirmScript(loadedScriptSrc);
   }
 
@@ -92,6 +91,7 @@ export function loadAffirm(
   loadedPublicKey = trimmedKey;
 
   loading = new Promise<void>((resolve, reject) => {
+    // Always set config before loading / waiting
     window._affirm_config = {
       public_api_key: trimmedKey,
       script: scriptSrc,
@@ -101,7 +101,7 @@ export function loadAffirm(
       (el) => (el as HTMLScriptElement).src === scriptSrc
     ) as HTMLScriptElement | undefined;
 
-    const finishSuccess = () => {
+    const finishOk = () => {
       waitForAffirmReady()
         .then(() => resolve())
         .catch((err) => {
@@ -110,13 +110,14 @@ export function loadAffirm(
         });
     };
 
-    const finishError = () => {
+    const finishErr = (msg: string) => {
       loading = null;
-      reject(new Error("Failed to load Affirm script"));
+      reject(new Error(msg));
     };
 
     if (existing) {
-      finishSuccess();
+      // Script is already present; just wait for init
+      finishOk();
       return;
     }
 
@@ -124,8 +125,8 @@ export function loadAffirm(
     s.async = true;
     s.src = scriptSrc;
 
-    s.onload = () => finishSuccess();
-    s.onerror = () => finishError();
+    s.onload = () => finishOk();
+    s.onerror = () => finishErr("Failed to load Affirm script");
 
     document.head.appendChild(s);
   });

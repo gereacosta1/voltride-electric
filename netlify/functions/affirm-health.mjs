@@ -118,7 +118,7 @@ export async function handler(event) {
       metadata: { mode: "modal" },
     };
 
-    const resCheckout = await fetch(`${base}/checkout`, {
+    const resCheckout = await fetch(`${base}/checkout/direct`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

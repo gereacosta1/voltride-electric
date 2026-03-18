@@ -8,16 +8,14 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Netlify Functions proxy (rewrite)
+# Netlify Functions proxy
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
-  force = true
 
 # SPA fallback (React/Vite)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = true

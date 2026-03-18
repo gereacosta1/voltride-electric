@@ -8,13 +8,15 @@ export default function PayWithCard() {
   const { items } = useCart();
   const [loading, setLoading] = useState(false);
 
+  const safeItems = Array.isArray(items) ? items : [];
+  const disabled = loading || safeItems.length === 0;
+
   async function handleCardCheckout() {
-    if (loading || items.length === 0) return;
+    if (disabled || typeof window === "undefined") return;
 
     try {
       setLoading(true);
-      await startCardCheckout(items);
-      // Si todo sale bien, normalmente redirige y no llega acá.
+      await startCardCheckout(safeItems);
     } catch (err) {
       console.error("[PayWithCard] checkout error:", err);
 
@@ -32,11 +34,11 @@ export default function PayWithCard() {
   return (
     <button
       type="button"
-      disabled={loading || items.length === 0}
+      disabled={disabled}
       onClick={handleCardCheckout}
       aria-busy={loading}
-      className="btn btn-primary w-full inline-flex items-center justify-center gap-2"
-      title={items.length === 0 ? "Add products to cart first" : "Pay by card"}
+      className="btn btn-primary inline-flex w-full items-center justify-center gap-2"
+      title={safeItems.length === 0 ? "Add products to cart first" : "Pay by card"}
     >
       <IconCard className="h-5 w-5" />
       {loading ? "Redirecting…" : "Pay by card"}

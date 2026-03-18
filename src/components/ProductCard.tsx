@@ -3,12 +3,31 @@ import React from "react";
 import { Product } from "../data/products";
 import { useCart } from "../context/CartContext";
 
-function safeSrc(src: string) {
-  return encodeURI(src);
+function safeSrc(src?: string) {
+  return encodeURI(String(src || "").trim() || "/fallback.png");
+}
+
+function safeText(value: unknown, fallback = "") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(value) || 0);
 }
 
 export default function ProductCard({ p }: { p: Product }) {
   const { addItem } = useCart();
+
+  const categoryLabel =
+    p.category === "scooters"
+      ? "Scooter"
+      : p.category === "ebikes"
+      ? "E-Bike"
+      : "Audio";
 
   return (
     <div className="glass card overflow-hidden">
@@ -16,38 +35,50 @@ export default function ProductCard({ p }: { p: Product }) {
         <img
           className="h-56 w-full object-cover"
           src={safeSrc(p.image)}
-          alt={p.name}
+          alt={safeText(p.name, "Product image")}
           loading="lazy"
+          onError={(e) => {
+            const target = e.currentTarget as HTMLImageElement;
+            if (target.src.endsWith("/fallback.png")) return;
+            target.src = "/fallback.png";
+          }}
         />
 
         <div className="absolute left-4 top-4 flex gap-2">
-          <span className="badge">
-            {p.category === "scooters" ? "Scooter" : p.category === "ebikes" ? "E-Bike" : "Audio"}
-          </span>
-          {p.featured ? <span className="badge" style={{ borderColor: "rgba(163,230,53,.35)" }}>Featured</span> : null}
+          <span className="badge">{categoryLabel}</span>
+          {p.featured ? (
+            <span
+              className="badge"
+              style={{ borderColor: "rgba(163,230,53,.35)" }}
+            >
+              Featured
+            </span>
+          ) : null}
         </div>
       </div>
 
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="font-extrabold truncate">{p.name}</div>
-            <div className="text-sm text-[var(--muted)] truncate">
-              {p.brand} • {p.model} • {p.year}
+            <div className="truncate font-extrabold">
+              {safeText(p.name, "Unnamed product")}
+            </div>
+            <div className="truncate text-sm text-[var(--muted)]">
+              {safeText(p.brand, "Brand")} • {safeText(p.model, "Model")} • {safeText(p.year, "-")}
             </div>
           </div>
 
           <div className="text-right">
-            <div className="font-black">
-              {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(p.price)}
+            <div className="font-black">{formatUsd(p.price)}</div>
+            <div className="text-xs text-[var(--muted)]">
+              {safeText(p.condition, "Available")}
             </div>
-            <div className="text-xs text-[var(--muted)]">{p.condition}</div>
           </div>
         </div>
 
-        {p.description ? (
-          <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-            {p.description}
+        {safeText(p.description) ? (
+          <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+            {safeText(p.description)}
           </p>
         ) : null}
 
@@ -57,11 +88,11 @@ export default function ProductCard({ p }: { p: Product }) {
             onClick={() =>
               addItem({
                 id: String(p.id),
-                name: p.name,
-                price: p.price,
+                name: safeText(p.name, "Product"),
+                price: Number(p.price) || 0,
                 qty: 1,
                 sku: String(p.id),
-                image: p.image,
+                image: safeText(p.image),
                 url: "#catalog",
               })
             }

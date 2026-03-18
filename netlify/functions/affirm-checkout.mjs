@@ -6,7 +6,6 @@ function json(statusCode, body, extraHeaders = {}) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      // CORS
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "POST,OPTIONS",
       "access-control-allow-headers":
@@ -19,7 +18,6 @@ function json(statusCode, body, extraHeaders = {}) {
 }
 
 function normalizeAffirmBase(raw) {
-  // Normalize to "https://api.affirm.com/api/v2" (no trailing slash)
   const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
   if (base.endsWith("/api/v2")) return base;
   return `${base}/api/v2`;
@@ -58,8 +56,9 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
-// Force server public key (don’t trust browser)
-function forceMerchantPublicKey(checkout, pubKey) {
+// Remove any merchant public key fields from the checkout body.
+// Affirm wants merchant identification to come from Authorization header only.
+function stripMerchantPublicKey(checkout) {
   if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) return checkout;
 
   const merchant =
@@ -67,16 +66,11 @@ function forceMerchantPublicKey(checkout, pubKey) {
       ? checkout.merchant
       : {};
 
-  // remove alternative fields to avoid conflicts
   const { publicApiKey, public_api_key, public_key, ...merchantRest } = merchant;
 
   return {
     ...checkout,
-    merchant: {
-      ...merchantRest,
-      // Affirm error field is "merchant.public_api_key"
-      public_api_key: pubKey,
-    },
+    merchant: merchantRest,
   };
 }
 
@@ -120,17 +114,22 @@ export async function handler(event) {
       };
     }
 
-    if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed" });
+    if (event.httpMethod !== "POST") {
+      return json(405, { error: "Method not allowed" });
+    }
 
     const auth = getBasicAuthHeader();
-    const { pub } = getKeys();
+    const { pub, priv } = getKeys();
 
-    if (!auth || !pub) {
-      return json(500, { error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY" });
+    if (!auth || !pub || !priv) {
+      return json(500, {
+        ok: false,
+        error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY",
+      });
     }
 
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
-    const endpoint = `${base}/checkout/direct`; // ✅ use direct consistently
+    const endpoint = `${base}/checkout/direct`;
 
     const payload = parseJsonSafe(event.body);
     if (!payload) return json(400, { error: "Invalid JSON body" });
@@ -157,8 +156,8 @@ export async function handler(event) {
       return json(400, { error: "Invalid checkout.currency" });
     }
 
-    // ✅ always force correct public_api_key from server env
-    checkout = forceMerchantPublicKey(checkout, pub);
+    // Important: do NOT send merchant.public_api_key in body.
+    checkout = stripMerchantPublicKey(checkout);
 
     console.log("[affirm-checkout] request", {
       reqId,
@@ -186,7 +185,6 @@ export async function handler(event) {
           "content-type": "application/json",
           authorization: auth,
         },
-        // send checkout as a plain object (no wrapper)
         body: JSON.stringify(checkout),
         signal: controller.signal,
       });
@@ -196,6 +194,11 @@ export async function handler(event) {
 
     const data = await readJsonOrText(res);
     const { checkout_token, redirect_url } = pickTokenAndRedirect(data);
+    const affirmRequestId =
+      res.headers.get("x-request-id") ||
+      res.headers.get("request-id") ||
+      res.headers.get("x-affirm-request-id") ||
+      null;
 
     console.log("[affirm-checkout] response", {
       reqId,
@@ -208,6 +211,7 @@ export async function handler(event) {
       non_json: Boolean(data?._non_json),
       affirm_code: data?.code || data?.details?.code || null,
       affirm_field: data?.field || data?.details?.field || null,
+      affirm_request_id: affirmRequestId,
     });
 
     if (!res.ok) {
@@ -215,21 +219,38 @@ export async function handler(event) {
         reqId,
         debug_id,
         status: res.status,
+        affirm_request_id: affirmRequestId,
         details: data,
         duration_ms: Date.now() - startedAt,
       });
 
-      return json(res.status, {
-        ok: false,
-        error: "Affirm checkout failed",
+      return json(
+        res.status,
+        {
+          ok: false,
+          error: "Affirm checkout failed",
+          status: res.status,
+          reqId,
+          debug_id,
+          affirm_request_id: affirmRequestId,
+          details: data,
+        },
+        affirmRequestId ? { "x-affirm-request-id": affirmRequestId } : {}
+      );
+    }
+
+    return json(
+      200,
+      {
+        ok: true,
         status: res.status,
         reqId,
         debug_id,
-        details: data,
-      });
-    }
-
-    return json(200, { ok: true, status: res.status, reqId, debug_id, data });
+        affirm_request_id: affirmRequestId,
+        data,
+      },
+      affirmRequestId ? { "x-affirm-request-id": affirmRequestId } : {}
+    );
   } catch (err) {
     const isAbort = err && (err.name === "AbortError" || String(err).includes("AbortError"));
 

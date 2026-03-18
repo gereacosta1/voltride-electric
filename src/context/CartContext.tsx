@@ -1,5 +1,12 @@
 // src/context/CartContext.tsx
-import { createContext, useContext, useMemo, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
 
 export type CartItem = {
   id: string | number;
@@ -27,8 +34,12 @@ const Ctx = createContext<CartCtx | null>(null);
 
 const STORAGE_KEY = "voltride_cart_v1";
 
+function canUseStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
 function normalizeItem(it: any): CartItem | null {
-  if (!it) return null;
+  if (!it || typeof it !== "object") return null;
 
   const id = it.id;
   if (id === undefined || id === null) return null;
@@ -50,14 +61,15 @@ function normalizeItem(it: any): CartItem | null {
   };
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
+export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Load cart
   useEffect(() => {
+    if (!canUseStorage()) return;
+
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
 
       const parsed = JSON.parse(raw);
@@ -69,58 +81,76 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       setItems(normalized);
     } catch {
-      // ignore
+      // ignore corrupted storage
     }
   }, []);
 
-  // Save cart
   useEffect(() => {
+    if (!canUseStorage()) return;
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     } catch {
-      // ignore
+      // ignore storage write errors
     }
   }, [items]);
 
   const totalUSD = useMemo(() => {
-    return items.reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
+    return items.reduce(
+      (acc, it) => acc + (Number(it.price) || 0) * (Number(it.qty) || 0),
+      0
+    );
   }, [items]);
 
-  const api: CartCtx = {
-    items,
-    totalUSD,
-    isOpen,
-    open: () => setIsOpen(true),
-    close: () => setIsOpen(false),
+  const api = useMemo<CartCtx>(
+    () => ({
+      items,
+      totalUSD,
+      isOpen,
+      open: () => setIsOpen(true),
+      close: () => setIsOpen(false),
 
-    addItem: (next) => {
-      const nextQty = Math.max(1, Number(next.qty) || 1);
-      const nextPrice = Number(next.price) || 0;
+      addItem: (next) => {
+        const normalized = normalizeItem(next);
+        if (!normalized) return;
 
-      setItems((prev) => {
-        const idx = prev.findIndex((p) => p.id === next.id);
-        if (idx >= 0) {
-          const copy = [...prev];
-          copy[idx] = {
-            ...copy[idx],
-            qty: Math.max(1, Number(copy[idx].qty) || 1) + nextQty,
-          };
-          return copy;
-        }
-        return [...prev, { ...next, price: nextPrice, qty: nextQty }];
-      });
+        const nextQty = Math.max(1, Number(normalized.qty) || 1);
+        const nextPrice = Number(normalized.price) || 0;
 
-      setIsOpen(true);
-    },
+        setItems((prev) => {
+          const idx = prev.findIndex((p) => p.id === normalized.id);
 
-    removeItem: (id) => setItems((prev) => prev.filter((p) => p.id !== id)),
-    clear: () => setItems([]),
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = {
+              ...copy[idx],
+              qty: Math.max(1, Number(copy[idx].qty) || 1) + nextQty,
+              price: nextPrice,
+            };
+            return copy;
+          }
 
-    setQty: (id, qty) => {
-      const q = Math.max(1, Number(qty) || 1);
-      setItems((prev) => prev.map((p) => (p.id === id ? { ...p, qty: q } : p)));
-    },
-  };
+          return [...prev, { ...normalized, price: nextPrice, qty: nextQty }];
+        });
+
+        setIsOpen(true);
+      },
+
+      removeItem: (id) => {
+        setItems((prev) => prev.filter((p) => p.id !== id));
+      },
+
+      clear: () => {
+        setItems([]);
+      },
+
+      setQty: (id, qty) => {
+        const q = Math.max(1, Number(qty) || 1);
+        setItems((prev) => prev.map((p) => (p.id === id ? { ...p, qty: q } : p)));
+      },
+    }),
+    [items, totalUSD, isOpen]
+  );
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

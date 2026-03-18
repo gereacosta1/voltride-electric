@@ -11,9 +11,10 @@ import { site } from "./config/site";
 import { IconBolt } from "./components/icons";
 
 function money(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    Number(n) || 0
-  );
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(n) || 0);
 }
 
 function SectionTitle({
@@ -28,11 +29,15 @@ function SectionTitle({
   return (
     <div className="mb-6">
       {eyebrow ? (
-        <div className="text-xs tracking-[.22em] uppercase text-[var(--muted)]">{eyebrow}</div>
+        <div className="text-xs tracking-[.22em] uppercase text-[var(--muted)]">
+          {eyebrow}
+        </div>
       ) : null}
-      <h2 className="h-serif text-4xl md:text-5xl leading-[1.02] mt-2">{title}</h2>
+
+      <h2 className="h-serif mt-2 text-4xl leading-[1.02] md:text-5xl">{title}</h2>
+
       {subtitle ? (
-        <p className="mt-3 text-sm md:text-base text-[var(--muted)] max-w-2xl leading-relaxed">
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
           {subtitle}
         </p>
       ) : null}
@@ -50,22 +55,24 @@ function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
       <main className="mx-auto max-w-3xl px-4 py-10">
         <section className="section">
           <div className="glass card p-6 md:p-10">
-            <div className="inline-flex items-center gap-2 badge">
+            <div className="badge inline-flex items-center gap-2">
               <IconBolt className="h-4 w-4" />
               {isConfirm ? "Affirm • Confirmation" : "Affirm • Canceled"}
             </div>
 
-            <h1 className="h-serif mt-5 text-4xl md:text-5xl leading-[1.02]">
-              {isConfirm ? "Thanks, your request was received." : "Affirm checkout was canceled."}
+            <h1 className="h-serif mt-5 text-4xl leading-[1.02] md:text-5xl">
+              {isConfirm
+                ? "Thanks, your request was received."
+                : "Affirm checkout was canceled."}
             </h1>
 
-            <p className="mt-4 text-sm md:text-base text-[var(--muted)] max-w-2xl leading-relaxed">
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
               {isConfirm
                 ? "If your financing application was approved, your request has been sent and the charge confirmation is handled by our checkout flow. If you need help, contact us and we’ll verify the order status."
                 : "No charges were made. You can return to the store and try again whenever you’re ready."}
             </p>
 
-            <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <a className="btn btn-primary px-6 py-3 text-center" href="/">
                 Return to store
               </a>
@@ -75,10 +82,10 @@ function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="glass card p-4">
                 <div className="font-black">Phone</div>
-                <div className="text-sm mt-1">
+                <div className="mt-1 text-sm">
                   <a
                     className="underline decoration-white/20 hover:decoration-white/60"
                     href={`tel:${site.phoneE164}`}
@@ -90,7 +97,7 @@ function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
 
               <div className="glass card p-4">
                 <div className="font-black">Email</div>
-                <div className="text-sm mt-1">
+                <div className="mt-1 text-sm">
                   <a
                     className="underline decoration-white/20 hover:decoration-white/60"
                     href={`mailto:${site.email}`}
@@ -130,35 +137,44 @@ function HomePage() {
     return `https://www.google.com/maps/search/?api=1&query=${q}`;
   }, []);
 
+  const featuredMinPrice = useMemo(() => {
+    if (!featured.length) return 0;
+    return Math.min(...featured.map((p) => Number(p.price) || 0));
+  }, [featured]);
+
   return (
     <div id="home" className="anchor">
       <Navbar />
 
       <main className="mx-auto max-w-6xl px-4">
-        {/* HERO */}
         <section className="section">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_.75fr] gap-6 items-stretch">
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.25fr_.75fr]">
             <div className="glass card p-6 md:p-10">
-              <div className="inline-flex items-center gap-2 badge">
+              <div className="badge inline-flex items-center gap-2">
                 <IconBolt className="h-4 w-4" />
                 Miami • Electric Mobility • Fast Checkout
               </div>
 
-              <h1 className="h-serif mt-5 text-5xl md:text-6xl leading-[0.98]">
+              <h1 className="h-serif mt-5 text-5xl leading-[0.98] md:text-6xl">
                 Clean power.
                 <br />
                 <span style={{ color: "rgba(229,231,235,.92)" }}>Bold rides.</span>
               </h1>
 
-              <p className="mt-4 text-sm md:text-base text-[var(--muted)] max-w-xl leading-relaxed">
-                Premium scooters, e-bikes and accessories. A modern storefront with smooth navigation,
-                a pro cart experience, and checkout options built for conversion.
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
+                Premium scooters, e-bikes and accessories. A modern storefront with
+                smooth navigation, a pro cart experience, and checkout options built
+                for conversion.
               </p>
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-2">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                 <button
                   className="btn btn-primary px-6 py-3"
-                  onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })}
+                  onClick={() =>
+                    document.getElementById("catalog")?.scrollIntoView({
+                      behavior: "smooth",
+                    })
+                  }
                   type="button"
                 >
                   Browse catalog
@@ -166,7 +182,11 @@ function HomePage() {
 
                 <button
                   className="btn px-6 py-3"
-                  onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+                  onClick={() =>
+                    document.getElementById("contact")?.scrollIntoView({
+                      behavior: "smooth",
+                    })
+                  }
                   type="button"
                 >
                   Get a quote
@@ -180,28 +200,27 @@ function HomePage() {
                 <span className="badge">Support-ready</span>
               </div>
 
-              <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="glass card p-4">
                   <div className="text-xs text-[var(--muted)]">Featured items</div>
-                  <div className="text-2xl font-black mt-1">{featured.length}</div>
+                  <div className="mt-1 text-2xl font-black">{featured.length}</div>
                 </div>
                 <div className="glass card p-4">
                   <div className="text-xs text-[var(--muted)]">Checkout</div>
-                  <div className="text-2xl font-black mt-1">Fast</div>
+                  <div className="mt-1 text-2xl font-black">Fast</div>
                 </div>
                 <div className="glass card p-4">
                   <div className="text-xs text-[var(--muted)]">Style</div>
-                  <div className="text-2xl font-black mt-1">Modern</div>
+                  <div className="mt-1 text-2xl font-black">Modern</div>
                 </div>
                 <div className="glass card p-4">
                   <div className="text-xs text-[var(--muted)]">Location</div>
-                  <div className="text-2xl font-black mt-1">Miami</div>
+                  <div className="mt-1 text-2xl font-black">Miami</div>
                 </div>
               </div>
             </div>
 
-            {/* SIDE PANEL (corte tipo CartCoders) */}
-            <div className="glass card overflow-hidden relative">
+            <div className="glass card relative overflow-hidden">
               <div
                 className="absolute inset-0"
                 style={{
@@ -211,37 +230,40 @@ function HomePage() {
                 }}
               />
               <div className="relative p-6 md:p-8">
-                <div className="text-xs tracking-[.22em] uppercase text-white/70">Today’s highlights</div>
+                <div className="text-xs uppercase tracking-[.22em] text-white/70">
+                  Today’s highlights
+                </div>
 
                 <div className="mt-4 space-y-3">
                   <div className="glass card p-4">
                     <div className="font-black">Best sellers</div>
-                    <div className="text-sm text-[var(--muted)] mt-1">
+                    <div className="mt-1 text-sm text-[var(--muted)]">
                       Scooters + E-bikes curated for city comfort.
                     </div>
                   </div>
 
                   <div className="glass card p-4">
                     <div className="font-black">Premium feel</div>
-                    <div className="text-sm text-[var(--muted)] mt-1">
+                    <div className="mt-1 text-sm text-[var(--muted)]">
                       A gradient editorial UI with smooth sections (no hard cuts).
                     </div>
                   </div>
 
                   <div className="glass card p-4">
                     <div className="font-black">Need help?</div>
-                    <div className="text-sm text-[var(--muted)] mt-1">
+                    <div className="mt-1 text-sm text-[var(--muted)]">
                       Message us for pricing, availability, and pickup options.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5 text-xs text-[var(--muted)]">Address: {site.address}</div>
+                <div className="mt-5 text-xs text-[var(--muted)]">
+                  Address: {site.address}
+                </div>
               </div>
 
-              {/* diagonal cut */}
               <div
-                className="absolute -bottom-20 -right-20 w-[260px] h-[260px]"
+                className="absolute -bottom-20 -right-20 h-[260px] w-[260px]"
                 style={{
                   background: "rgba(0,0,0,.32)",
                   transform: "rotate(20deg)",
@@ -252,7 +274,6 @@ function HomePage() {
           </div>
         </section>
 
-        {/* FEATURED */}
         <section className="section" id="featured">
           <SectionTitle
             eyebrow="Curated"
@@ -260,14 +281,13 @@ function HomePage() {
             subtitle="A clean set of products to make the home feel full and premium. Add more items anytime and the layout stays consistent."
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {featured.map((p) => (
               <ProductCard key={p.id} p={p} />
             ))}
           </div>
         </section>
 
-        {/* CATALOG */}
         <section className="section anchor" id="catalog">
           <SectionTitle
             eyebrow="Catalog"
@@ -275,8 +295,12 @@ function HomePage() {
             subtitle="Filter by category and add items to your cart. Designed to feel like a real store — not a demo."
           />
 
-          <div className="flex flex-wrap gap-2 mb-6">
-            <button className={`btn ${tab === "all" ? "btn-primary" : ""}`} onClick={() => setTab("all")} type="button">
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              className={`btn ${tab === "all" ? "btn-primary" : ""}`}
+              onClick={() => setTab("all")}
+              type="button"
+            >
               All
             </button>
             <button
@@ -302,14 +326,13 @@ function HomePage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((p) => (
               <ProductCard key={p.id} p={p} />
             ))}
           </div>
         </section>
 
-        {/* ABOUT */}
         <section className="section anchor" id="about">
           <SectionTitle
             eyebrow="About"
@@ -317,47 +340,56 @@ function HomePage() {
             subtitle="The goal is a site that looks modern, feels full, and converts. Simple structure, high-end UI, strong cart, and clean checkout."
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="glass card p-6 md:p-8">
               <div className="h-serif text-3xl leading-tight">
                 We blend electric mobility with a clean, editorial design.
               </div>
-              <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-                This layout keeps sections visually connected (difuminado) so the page feels like one premium
-                experience — not separate blocks. Perfect for adding more products and sections later.
+              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                This layout keeps sections visually connected (difuminado) so the
+                page feels like one premium experience — not separate blocks.
+                Perfect for adding more products and sections later.
               </p>
 
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="glass card p-4">
                   <div className="font-black">Catalog-ready</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Categories + featured picks</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Categories + featured picks
+                  </div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Pro cart UX</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Stepper, ESC close, scroll lock</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Stepper, ESC close, scroll lock
+                  </div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Brand look</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Voltride gradient + serif headlines</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Voltride gradient + serif headlines
+                  </div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Fast edits</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Add sections easily</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">Add sections easily</div>
                 </div>
               </div>
             </div>
 
             <div className="glass card p-6 md:p-8">
-              <div className="text-xs tracking-[.22em] uppercase text-[var(--muted)]">Quick store info</div>
+              <div className="text-xs uppercase tracking-[.22em] text-[var(--muted)]">
+                Quick store info
+              </div>
 
               <div className="mt-4 space-y-3">
                 <div className="glass card p-4">
                   <div className="font-black">Address</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">{site.address}</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">{site.address}</div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Phone</div>
-                  <div className="text-sm mt-1">
+                  <div className="mt-1 text-sm">
                     <a
                       className="underline decoration-white/20 hover:decoration-white/60"
                       href={`tel:${site.phoneE164}`}
@@ -368,7 +400,7 @@ function HomePage() {
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Email</div>
-                  <div className="text-sm mt-1">
+                  <div className="mt-1 text-sm">
                     <a
                       className="underline decoration-white/20 hover:decoration-white/60"
                       href={`mailto:${site.email}`}
@@ -380,13 +412,13 @@ function HomePage() {
               </div>
 
               <div className="mt-5 text-xs text-[var(--muted)]">
-                Tip: when you add more products, mark some as <b>featured</b> to keep the homepage strong.
+                Tip: when you add more products, mark some as <b>featured</b> to
+                keep the homepage strong.
               </div>
             </div>
           </div>
         </section>
 
-        {/* STORE (OPTION B) */}
         <section className="section anchor" id="store">
           <SectionTitle
             eyebrow="Store"
@@ -396,14 +428,14 @@ function HomePage() {
 
           <div className="glass card p-4 md:p-6">
             <div className="storeGrid">
-              {/* LEFT: info / hours / pickup */}
               <div className="storeSide">
                 <div className="storeKicker">Pickup essentials</div>
 
                 <div className="storeBlock">
                   <div className="storeBlockTitle">Local pickup</div>
                   <div className="storeText">
-                    Reserve your item, we confirm availability, then you pick up in-store. Fast and simple.
+                    Reserve your item, we confirm availability, then you pick up
+                    in-store. Fast and simple.
                   </div>
 
                   <div className="storeSteps">
@@ -411,7 +443,9 @@ function HomePage() {
                       <div className="storeStepNum">1</div>
                       <div className="storeStepBody">
                         <div className="storeStepTitle">Ask about stock</div>
-                        <div className="storeText">Send a message with the product name (or a screenshot).</div>
+                        <div className="storeText">
+                          Send a message with the product name (or a screenshot).
+                        </div>
                       </div>
                     </div>
 
@@ -419,7 +453,9 @@ function HomePage() {
                       <div className="storeStepNum">2</div>
                       <div className="storeStepBody">
                         <div className="storeStepTitle">We confirm</div>
-                        <div className="storeText">We confirm availability + pickup time window.</div>
+                        <div className="storeText">
+                          We confirm availability + pickup time window.
+                        </div>
                       </div>
                     </div>
 
@@ -427,7 +463,9 @@ function HomePage() {
                       <div className="storeStepNum">3</div>
                       <div className="storeStepBody">
                         <div className="storeStepTitle">Pickup</div>
-                        <div className="storeText">Come by the store and you’re good to go.</div>
+                        <div className="storeText">
+                          Come by the store and you’re good to go.
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -448,7 +486,6 @@ function HomePage() {
                 </div>
               </div>
 
-              {/* CENTER: image (NO heavy frame) */}
               <div className="storeMediaWrap">
                 <div className="storeMedia">
                   <img
@@ -468,12 +505,21 @@ function HomePage() {
                   </div>
 
                   <div className="storeActions">
-                    <a className="btn px-5 py-3 text-center" href={mapsUrl} target="_blank" rel="noreferrer">
+                    <a
+                      className="btn px-5 py-3 text-center"
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Get directions
                     </a>
                     <button
                       className="btn btn-primary px-5 py-3"
-                      onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}
+                      onClick={() =>
+                        document.getElementById("contact")?.scrollIntoView({
+                          behavior: "smooth",
+                        })
+                      }
                       type="button"
                     >
                       Ask about pickup
@@ -482,21 +528,26 @@ function HomePage() {
                 </div>
               </div>
 
-              {/* RIGHT: contact / checklist */}
               <div className="storeSide">
                 <div className="storeKicker">Contact</div>
 
                 <div className="storeBlock">
                   <div className="storeBlockTitle">Call / text</div>
                   <div className="storeText">
-                    <a className="underline decoration-white/20 hover:decoration-white/60" href={`tel:${site.phoneE164}`}>
+                    <a
+                      className="underline decoration-white/20 hover:decoration-white/60"
+                      href={`tel:${site.phoneE164}`}
+                    >
                       {site.phonePretty}
                     </a>
                   </div>
 
                   <div className="storeBlockTitle mt-4">Email</div>
                   <div className="storeText">
-                    <a className="underline decoration-white/20 hover:decoration-white/60" href={`mailto:${site.email}`}>
+                    <a
+                      className="underline decoration-white/20 hover:decoration-white/60"
+                      href={`mailto:${site.email}`}
+                    >
                       {site.email}
                     </a>
                   </div>
@@ -514,7 +565,9 @@ function HomePage() {
 
                 <div className="storeBlock">
                   <div className="storeBlockTitle">Payments</div>
-                  <div className="storeText">Card + Affirm options available (online checkout).</div>
+                  <div className="storeText">
+                    Card + Affirm options available (online checkout).
+                  </div>
                   <div className="storeBadges">
                     <span className="badge">Affirm</span>
                     <span className="badge">Card</span>
@@ -526,7 +579,6 @@ function HomePage() {
           </div>
         </section>
 
-        {/* CONTACT */}
         <section className="section anchor" id="contact">
           <SectionTitle
             eyebrow="Contact"
@@ -534,16 +586,21 @@ function HomePage() {
             subtitle="Ask about availability, pickup options, or recommendations. This form also works with Netlify Forms if you enable it."
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_.9fr] gap-6">
-            <form className="glass card p-6 md:p-8" name="contact" method="POST" data-netlify="true">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_.9fr]">
+            <form
+              className="glass card p-6 md:p-8"
+              name="contact"
+              method="POST"
+              data-netlify="true"
+            >
               <input type="hidden" name="form-name" value="contact" />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs text-[var(--muted)]">Name</label>
                   <input
                     name="name"
-                    className="mt-1 w-full rounded-2xl bg-black/25 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:ring-2"
+                    className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none focus:ring-2"
                     style={{ boxShadow: "0 0 0 0 rgba(0,0,0,0)" }}
                     placeholder="Your name"
                   />
@@ -552,7 +609,7 @@ function HomePage() {
                   <label className="text-xs text-[var(--muted)]">Phone</label>
                   <input
                     name="phone"
-                    className="mt-1 w-full rounded-2xl bg-black/25 border border-white/10 px-4 py-3 text-sm text-white outline-none"
+                    className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none"
                     placeholder="(786) 000-0000"
                   />
                 </div>
@@ -563,7 +620,7 @@ function HomePage() {
                 <input
                   name="email"
                   type="email"
-                  className="mt-1 w-full rounded-2xl bg-black/25 border border-white/10 px-4 py-3 text-sm text-white outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none"
                   placeholder="you@email.com"
                 />
               </div>
@@ -573,12 +630,12 @@ function HomePage() {
                 <textarea
                   name="message"
                   rows={5}
-                  className="mt-1 w-full rounded-2xl bg-black/25 border border-white/10 px-4 py-3 text-sm text-white outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none"
                   placeholder="Tell us what you’re looking for…"
                 />
               </div>
 
-              <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <button className="btn btn-primary px-6 py-3" type="submit">
                   Send message
                 </button>
@@ -594,31 +651,39 @@ function HomePage() {
             </form>
 
             <div className="glass card p-6 md:p-8">
-              <div className="h-serif text-3xl leading-tight">Storefront that feels like a brand — not a template.</div>
+              <div className="h-serif text-3xl leading-tight">
+                Storefront that feels like a brand — not a template.
+              </div>
 
-              <p className="mt-3 text-sm text-[var(--muted)] leading-relaxed">
-                You asked for: fuller page, stronger home, better cart, innovative styling, gradient background like
-                Monograph, typography vibe like Our Revolution, and a diagonal cut concept. This setup is made for that.
+              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                You asked for: fuller page, stronger home, better cart, innovative
+                styling, gradient background like Monograph, typography vibe like Our
+                Revolution, and a diagonal cut concept. This setup is made for that.
               </p>
 
               <div className="mt-6 space-y-3">
                 <div className="glass card p-4">
                   <div className="font-black">Next upgrade idea</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Add “Product details” modal with gallery + specs.</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Add “Product details” modal with gallery + specs.
+                  </div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Another upgrade</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Add “Testimonials / Reviews” to build trust.</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Add “Testimonials / Reviews” to build trust.
+                  </div>
                 </div>
                 <div className="glass card p-4">
                   <div className="font-black">Conversion boost</div>
-                  <div className="text-sm text-[var(--muted)] mt-1">Add sticky “Shop now” bar on mobile.</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Add sticky “Shop now” bar on mobile.
+                  </div>
                 </div>
               </div>
 
               <div className="mt-5 text-xs text-[var(--muted)]">
-                Current featured minimum price:{" "}
-                <b>{money(Math.min(...featured.map((p) => p.price)))}</b>
+                Current featured minimum price: <b>{money(featuredMinPrice)}</b>
               </div>
             </div>
           </div>
@@ -633,7 +698,9 @@ function HomePage() {
 
 export default function App() {
   const pathname =
-    typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
+    typeof window !== "undefined"
+      ? window.location.pathname.replace(/\/+$/, "") || "/"
+      : "/";
 
   const isAffirmConfirm = pathname === "/checkout/affirm/confirm";
   const isAffirmCancel = pathname === "/checkout/affirm/cancel";

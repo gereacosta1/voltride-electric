@@ -10,7 +10,7 @@ import {
 type ButtonCartItem = {
   name: string;
   sku?: string | number;
-  price: number; // USD
+  price: number;
   qty: number;
   url?: string;
   image?: string;
@@ -24,18 +24,18 @@ type Props = {
   taxUSD?: number;
 };
 
-const MIN_TOTAL_CENTS = 5000; // $50 mínimo
-const toCents = (usd = 0) => Math.round((Number(usd) || 0) * 100);
+const MIN_TOTAL_CENTS = 5000;
+const toCents = (usd = 0) => Math.max(0, Math.round((Number(usd) || 0) * 100));
 
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-const isUSState = (v: string) => /^[A-Z]{2}$/.test(v.trim().toUpperCase());
-const isUSZip = (v: string) => /^\d{5}(-\d{4})?$/.test(v.trim());
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+const isUSState = (v: string) => /^[A-Z]{2}$/.test(String(v || "").trim().toUpperCase());
+const isUSZip = (v: string) => /^\d{5}(-\d{4})?$/.test(String(v || "").trim());
 
 const DEBUG_STORAGE_KEY = "voltride_affirm_debug_v1";
 const DEBUG_MAX_EVENTS = 200;
 
 type DebugEvent = {
-  ts: string; // ISO
+  ts: string;
   step: string;
   data?: Record<string, any>;
 };
@@ -68,18 +68,23 @@ function safeJsonStringify(v: any) {
 }
 
 function makeDebugId() {
-  return (
-    "dbg_" +
-    Date.now().toString(36) +
-    "_" +
-    Math.random().toString(36).slice(2, 8)
-  );
+  return `dbg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function canUseStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 function getOrInitDebugState(): DebugState {
-  const existing = safeJsonParse<DebugState>(
-    localStorage.getItem(DEBUG_STORAGE_KEY)
-  );
+  if (!canUseStorage()) {
+    return {
+      debugId: makeDebugId(),
+      createdAt: nowIso(),
+      events: [],
+    };
+  }
+
+  const existing = safeJsonParse<DebugState>(window.localStorage.getItem(DEBUG_STORAGE_KEY));
   if (existing?.debugId && Array.isArray(existing.events)) return existing;
 
   const init: DebugState = {
@@ -87,12 +92,14 @@ function getOrInitDebugState(): DebugState {
     createdAt: nowIso(),
     events: [],
   };
-  localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(init));
+
+  window.localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(init));
   return init;
 }
 
-function setDebugState(next: DebugState) {
-  localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(next));
+function persistDebugState(next: DebugState) {
+  if (!canUseStorage()) return;
+  window.localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(next));
 }
 
 function sanitizeEmail(email: string) {
@@ -107,7 +114,7 @@ function sanitizeToken(token: string) {
   const t = String(token || "").trim();
   return {
     token_len: t.length,
-    token_prefix: t ? t.slice(0, 8) + "…" : "",
+    token_prefix: t ? `${t.slice(0, 8)}…` : "",
   };
 }
 
@@ -128,26 +135,23 @@ function tryParseJson(text: string): any | null {
 }
 
 function getAffirmTokenFromResponse(payload: any): string {
-  const t = String(
+  return String(
     payload?.data?.checkout_token ||
       payload?.checkout_token ||
       payload?.data?.token ||
       ""
   ).trim();
-  return t;
 }
 
 function getAffirmRedirectUrlFromResponse(payload: any): string {
-  const u = String(
+  return String(
     payload?.data?.redirect_url ||
       payload?.redirect_url ||
       payload?.data?.redirect ||
       ""
   ).trim();
-  return u;
 }
 
-// Extract best message + metadata from your server error shape
 function extractServerError(payload: any) {
   const details = payload?.details ?? payload?.data ?? payload ?? null;
 
@@ -159,7 +163,10 @@ function extractServerError(payload: any) {
     null;
 
   const field =
-    payload?.details?.field || payload?.field || details?.field || null;
+    payload?.details?.field ||
+    payload?.field ||
+    details?.field ||
+    null;
 
   const message =
     payload?.details?.message ||
@@ -168,7 +175,12 @@ function extractServerError(payload: any) {
     payload?.error ||
     "Affirm checkout failed";
 
-  const reqId = payload?.reqId || payload?.request_id || null;
+  const reqId =
+    payload?.affirm_request_id ||
+    payload?.reqId ||
+    payload?.request_id ||
+    null;
+
   const debug_id = payload?.debug_id || payload?.debugId || null;
 
   return {
@@ -197,13 +209,12 @@ function Toast({
     <div
       role="status"
       onClick={onClose}
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold
-      ${
+      className={`fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 rounded-xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
         type === "success"
-          ? "bg-green-600/95 text-white border-green-400"
+          ? "border-green-400 bg-green-600/95 text-white"
           : type === "error"
-          ? "bg-red-600/95 text-white border-red-400"
-          : "bg-black/90 text-white border-white/20"
+          ? "border-red-400 bg-red-600/95 text-white"
+          : "border-white/20 bg-black/90 text-white"
       }`}
     >
       {message}
@@ -238,13 +249,13 @@ function NiceModal({
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={disableClose ? undefined : onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-[95%] max-w-md p-6">
-        <div className="flex items-start justify-between mb-4">
+      <div className="relative w-[95%] max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="mb-4 flex items-start justify-between">
           <h3 className="text-xl font-black text-gray-900">{title}</h3>
           <button
             onClick={onClose}
             className={`text-gray-500 hover:text-gray-800 ${
-              disableClose ? "opacity-40 pointer-events-none" : ""
+              disableClose ? "pointer-events-none opacity-40" : ""
             }`}
             aria-label="Close"
             title={disableClose ? "Complete the form to continue" : "Close"}
@@ -254,15 +265,15 @@ function NiceModal({
           </button>
         </div>
 
-        <div className="text-gray-700 mb-6">{children}</div>
+        <div className="mb-6 text-gray-700">{children}</div>
 
         <div className="flex items-center justify-end gap-3">
           {secondaryLabel && (
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 ${
-                disableClose ? "opacity-40 pointer-events-none" : ""
+              className={`rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 ${
+                disableClose ? "pointer-events-none opacity-40" : ""
               }`}
             >
               {secondaryLabel}
@@ -272,7 +283,7 @@ function NiceModal({
             <button
               type="button"
               onClick={onPrimary}
-              className="px-4 py-2 rounded-lg bg-black text-white font-bold hover:bg-gray-900"
+              className="rounded-lg bg-black px-4 py-2 font-bold text-white hover:bg-gray-900"
             >
               {primaryLabel}
             </button>
@@ -309,8 +320,7 @@ function BuyerInfoForm({
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-600">
-        To continue with Affirm, please enter the buyer information (name and US
-        address).
+        To continue with Affirm, please enter the buyer information.
       </p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -391,10 +401,6 @@ function BuyerInfoForm({
           <input className={inputClass} value="US" disabled />
         </div>
       </div>
-
-      <p className="text-xs text-gray-500">
-        We use this information only to create the Affirm checkout.
-      </p>
     </div>
   );
 }
@@ -405,10 +411,11 @@ export default function AffirmButton({
   shippingUSD = 0,
   taxUSD = 0,
 }: Props) {
-  const PUBLIC_KEY = (import.meta.env.VITE_AFFIRM_PUBLIC_KEY || "").trim();
-  const ENV = (import.meta.env.VITE_AFFIRM_ENV || "prod") as "prod" | "sandbox";
+  const PUBLIC_KEY = String(import.meta.env.VITE_AFFIRM_PUBLIC_KEY || "").trim();
+  const ENV = (String(import.meta.env.VITE_AFFIRM_ENV || "prod").trim() || "prod") as
+    | "prod"
+    | "sandbox";
 
-  // Prefer /api routes (netlify.toml rewrites them to functions)
   const CHECKOUT_ENDPOINT = "/api/affirm-checkout";
   const AUTHORIZE_ENDPOINT = "/api/affirm-authorize";
   const TRACE_ENDPOINT = "/api/trace";
@@ -431,7 +438,7 @@ export default function AffirmButton({
 
   const [buyerModalOpen, setBuyerModalOpen] = useState(false);
 
-  const [buyer, setBuyer] = useState<BuyerForm>(() => ({
+  const [buyer, setBuyer] = useState<BuyerForm>({
     firstName: "",
     lastName: "",
     email: "",
@@ -439,18 +446,15 @@ export default function AffirmButton({
     city: "",
     state: "",
     zip: "",
-  }));
+  });
 
   const [debugState, setDebugStateUI] = useState<DebugState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
-
-  // Track whether we already showed a "canceled" modal vs server error
   const lastFailureRef = useRef<null | "server" | "client">(null);
 
   useEffect(() => {
     try {
-      const st = getOrInitDebugState();
-      setDebugStateUI(st);
+      setDebugStateUI(getOrInitDebugState());
     } catch {
       setDebugStateUI(null);
     }
@@ -465,7 +469,7 @@ export default function AffirmButton({
           -DEBUG_MAX_EVENTS
         ),
       };
-      setDebugState(next);
+      persistDebugState(next);
       setDebugStateUI(next);
     } catch {
       // ignore
@@ -500,6 +504,8 @@ export default function AffirmButton({
     message: string,
     ms = 2200
   ) => {
+    if (typeof window === "undefined") return;
+
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
@@ -515,30 +521,32 @@ export default function AffirmButton({
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      if (typeof window !== "undefined" && toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
     };
   }, []);
 
   const mapped: Item[] = useMemo(() => {
-    return cartItems.map((it, i) => ({
+    return (cartItems || []).map((it, i) => ({
       id: (it.id ?? it.sku ?? String(i + 1)) as string | number,
       title: String(it.name ?? `Item ${i + 1}`).trim() || `Item ${i + 1}`,
-      price: Number(it.price) || 0,
+      price: Math.max(0, Number(it.price) || 0),
       qty: Math.max(1, Number(it.qty) || 1),
-      url: it.url ?? "/",
-      image: it.image,
+      url: typeof it.url === "string" && it.url.trim() ? it.url : "/",
+      image: typeof it.image === "string" && it.image.trim() ? it.image : undefined,
     }));
   }, [cartItems]);
 
   const subtotalC = mapped.reduce((acc, it) => acc + toCents(it.price) * it.qty, 0);
   const shippingC = toCents(shippingUSD);
   const taxC = toCents(taxUSD);
-
   const totalC =
     typeof totalUSD === "number" ? toCents(totalUSD) : subtotalC + shippingC + taxC;
 
-  const affirmEnabled = !!PUBLIC_KEY;
-  const canPay = affirmEnabled && ready && mapped.length > 0 && totalC >= MIN_TOTAL_CENTS;
+  const affirmEnabled = Boolean(PUBLIC_KEY);
+  const canPay =
+    affirmEnabled && ready && mapped.length > 0 && totalC >= MIN_TOTAL_CENTS;
 
   useEffect(() => {
     let mounted = true;
@@ -591,14 +599,13 @@ export default function AffirmButton({
         city: buyer.city.trim(),
         state: buyer.state.trim().toUpperCase(),
         zip: buyer.zip.trim(),
-        // kept for type compatibility; server payload uses country_code anyway
         country: "US",
       },
     };
   }
 
   async function startAffirmFlow() {
-    if (opening) return;
+    if (opening || typeof window === "undefined") return;
 
     const affirm = (window as any).affirm;
     lastFailureRef.current = null;
@@ -609,6 +616,7 @@ export default function AffirmButton({
       has_public_key: Boolean(PUBLIC_KEY),
       env: ENV,
     });
+
     traceServer("open_attempt", {
       cart_items: mapped.length,
       total_cents: totalC,
@@ -646,11 +654,13 @@ export default function AffirmButton({
         has_name: Boolean(buyer.firstName && buyer.lastName),
         has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
       });
+
       traceServer("buyer_invalid", {
         email: sanitizeEmail(buyer.email),
         has_name: Boolean(buyer.firstName && buyer.lastName),
         has_address: Boolean(buyer.line1 && buyer.city && buyer.state && buyer.zip),
       }).catch(() => {});
+
       setBuyerModalOpen(true);
       return;
     }
@@ -679,7 +689,6 @@ export default function AffirmButton({
     setOpening(true);
 
     try {
-      // 1) Create checkout via server (Netlify Function)
       const debug_id = getOrInitDebugState().debugId;
 
       const resp = await fetch(CHECKOUT_ENDPOINT, {
@@ -727,7 +736,6 @@ export default function AffirmButton({
         return;
       }
 
-      // 2) token / redirect_url
       const token = getAffirmTokenFromResponse(payload);
       const redirectUrl = getAffirmRedirectUrlFromResponse(payload);
 
@@ -735,7 +743,7 @@ export default function AffirmButton({
         status: resp.status,
         has_token: Boolean(token),
         has_redirect_url: Boolean(redirectUrl),
-        reqId: payload?.reqId || null,
+        reqId: payload?.affirm_request_id || payload?.reqId || null,
         debug_id: payload?.debug_id || debug_id,
       });
 
@@ -756,11 +764,11 @@ export default function AffirmButton({
         return;
       }
 
-      // 3) Open Affirm modal with token
       affirm.checkout({ checkout_token: token });
       affirm.checkout.open({
         onSuccess: async ({ checkout_token }: { checkout_token: string }) => {
           const finalToken = String(checkout_token || token).trim();
+
           addDebugEvent("onSuccess", { ...sanitizeToken(finalToken) });
 
           if (!finalToken) {
@@ -774,12 +782,12 @@ export default function AffirmButton({
             return;
           }
 
-          const orderId = "ORDER-" + Date.now();
+          const orderId = `ORDER-${Date.now()}`;
 
           try {
             const r = await fetch(AUTHORIZE_ENDPOINT, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "content-type": "application/json" },
               body: JSON.stringify({
                 debug_id: getOrInitDebugState().debugId,
                 checkout_token: finalToken,
@@ -826,7 +834,11 @@ export default function AffirmButton({
               return;
             }
 
-            addDebugEvent("authorize_ok", { status: r.status });
+            addDebugEvent("authorize_ok", {
+              status: r.status,
+              reqId: p?.affirm_request_id || p?.reqId || null,
+            });
+
             showToast("success", "Affirm request submitted!");
           } finally {
             setOpening(false);
@@ -853,7 +865,6 @@ export default function AffirmButton({
         },
 
         onClose: () => {
-          // If we just failed on server-side, don't show "canceled" modal
           if (lastFailureRef.current === "server") {
             setOpening(false);
             return;
@@ -889,7 +900,10 @@ export default function AffirmButton({
 
   const copyDebug = async () => {
     try {
-      const st = safeJsonParse<DebugState>(localStorage.getItem(DEBUG_STORAGE_KEY));
+      const st = canUseStorage()
+        ? safeJsonParse<DebugState>(window.localStorage.getItem(DEBUG_STORAGE_KEY))
+        : null;
+
       const text = safeJsonStringify(st || { error: "No debug data" });
       await navigator.clipboard.writeText(text);
       showToast("success", "Debug copied");
@@ -900,7 +914,9 @@ export default function AffirmButton({
 
   const clearDebug = () => {
     try {
-      localStorage.removeItem(DEBUG_STORAGE_KEY);
+      if (canUseStorage()) {
+        window.localStorage.removeItem(DEBUG_STORAGE_KEY);
+      }
       const st = getOrInitDebugState();
       setDebugStateUI(st);
       showToast("success", "Debug cleared");
@@ -915,10 +931,7 @@ export default function AffirmButton({
         type="button"
         onClick={startAffirmFlow}
         disabled={!affirmEnabled || opening || !canPay}
-        className="w-full rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-wide
-                   bg-gradient-to-r from-sky-500 to-violet-500
-                   hover:brightness-110 transition
-                   disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 px-4 py-3 text-xs font-bold uppercase tracking-wide transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         title={
           !affirmEnabled
             ? "Missing VITE_AFFIRM_PUBLIC_KEY or Affirm disabled"

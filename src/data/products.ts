@@ -21,7 +21,6 @@ export type Product = {
 };
 
 export const products: Product[] = [
-  // --- SCOOTERS ---
   {
     id: 5,
     name: "Electric Scooter City",
@@ -101,7 +100,6 @@ export const products: Product[] = [
     features: ["Motor eléctrico", "Plegable", "Freno regenerativo"],
   },
 
-  // --- E-BIKES ---
   {
     id: 25,
     name: "E-bike XP4",
@@ -144,10 +142,13 @@ export const products: Product[] = [
     engine: "Electric",
     featured: true,
     description: "E-bike estilo scrambler, potente y cómoda.",
-    features: ["Motor eléctrico de alta potencia", "Batería de alta capacidad", "Diseño robusto"],
+    features: [
+      "Motor eléctrico de alta potencia",
+      "Batería de alta capacidad",
+      "Diseño robusto",
+    ],
   },
 
-  // --- JBL / AUDIO ---
   {
     id: 21,
     name: "JBL Charge 4",
@@ -173,7 +174,8 @@ export const products: Product[] = [
     image: "/IMG/jbl-go-4.jpeg",
     condition: "Nueva",
     category: "audio",
-    description: "Parlante ultra compacto para llevar en el bolsillo. Ideal para uso diario.",
+    description:
+      "Parlante ultra compacto para llevar en el bolsillo. Ideal para uso diario.",
     features: ["Bluetooth", "Tamaño compacto", "Hasta 8h de batería"],
   },
   {

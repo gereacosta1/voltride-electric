@@ -3,31 +3,40 @@ import { useMemo } from "react";
 import { useCart } from "../context/CartContext";
 import AffirmButton from "./AffirmButton";
 
+type NormalizedCartItem = {
+  id: string | number;
+  sku: string | number;
+  name: string;
+  price: number;
+  qty: number;
+  url: string;
+  image?: string;
+};
+
 export default function PayWithAffirm() {
   const { items, totalUSD } = useCart();
 
-  const cartItems = useMemo(() => {
-    return (items || []).map((it, idx) => {
-      const id = (it as any).id ?? (it as any).sku ?? String(idx + 1);
+  const cartItems = useMemo<NormalizedCartItem[]>(() => {
+    return (items || []).map((it: any, idx: number) => {
+      const id = it?.id ?? it?.sku ?? String(idx + 1);
 
       const rawName =
-        (it as any).name ??
-        (it as any).title ??
-        (it as any).productName ??
+        it?.name ??
+        it?.title ??
+        it?.productName ??
         `Item ${idx + 1}`;
 
       const name = String(rawName || "").trim() || `Item ${idx + 1}`;
-
-      const sku = ((it as any).sku ?? id) as string | number;
+      const sku = it?.sku ?? id;
 
       return {
-        name,
-        sku,
         id,
-        price: Number((it as any).price) || 0,
-        qty: Math.max(1, Number((it as any).qty) || 1),
-        url: (it as any).url || "/",
-        image: (it as any).image,
+        sku,
+        name,
+        price: Number(it?.price) || 0,
+        qty: Math.max(1, Number(it?.qty) || 1),
+        url: typeof it?.url === "string" && it.url.trim() ? it.url : "/",
+        image: typeof it?.image === "string" && it.image.trim() ? it.image : undefined,
       };
     });
   }, [items]);
@@ -35,7 +44,7 @@ export default function PayWithAffirm() {
   return (
     <AffirmButton
       cartItems={cartItems}
-      totalUSD={Number(totalUSD) || 0}
+      totalUSD={Math.max(0, Number(totalUSD) || 0)}
       shippingUSD={0}
       taxUSD={0}
     />

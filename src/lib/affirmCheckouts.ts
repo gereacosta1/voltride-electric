@@ -30,17 +30,69 @@ export type Customer = {
   };
 };
 
-const toCents = (usd = 0) => Math.round((Number(usd) || 0) * 100);
+type AffirmName = {
+  first: string;
+  last: string;
+};
 
-function safeBase(origin?: string) {
+type AffirmAddress = {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  zipcode: string;
+  country_code: "US";
+};
+
+type AffirmItem = {
+  display_name: string;
+  sku: string;
+  unit_price: number;
+  qty: number;
+  item_url: string;
+  item_image_url?: string;
+};
+
+type AffirmCheckoutPayload = {
+  merchant: {
+    user_confirmation_url: string;
+    user_cancel_url: string;
+    user_confirmation_url_action: "GET";
+    name: string;
+  };
+  items: AffirmItem[];
+  currency: "USD";
+  shipping_amount: number;
+  tax_amount: number;
+  total: number;
+  metadata: {
+    mode: "modal";
+  };
+  billing: {
+    name: AffirmName;
+    address: AffirmAddress;
+    email: string;
+    phone_number?: string;
+  };
+  shipping: {
+    name: AffirmName;
+    address: AffirmAddress;
+    phone_number?: string;
+  };
+};
+
+const toCents = (usd = 0): number => Math.max(0, Math.round((Number(usd) || 0) * 100));
+
+function safeBase(origin?: string): string {
   const raw =
     String(origin || "").trim() ||
     (typeof window !== "undefined" ? window.location.origin : "");
   return raw.replace(/\/+$/, "");
 }
 
-function toAbsoluteUrl(base: string, value?: string, fallbackPath = "/") {
+function toAbsoluteUrl(base: string, value?: string, fallbackPath = "/"): string {
   const raw = String(value || "").trim();
+
   try {
     if (!raw) return new URL(fallbackPath, base).toString();
     return new URL(raw, base).toString();
@@ -49,36 +101,66 @@ function toAbsoluteUrl(base: string, value?: string, fallbackPath = "/") {
   }
 }
 
-function normalizeState(state: string) {
+function normalizeState(state: string): string {
   return String(state || "").trim().toUpperCase().slice(0, 2);
 }
 
-function normalizeZip(zip: string) {
+function normalizeZip(zip: string): string {
   const z = String(zip || "").trim();
   const m = z.match(/^(\d{5})(-\d{4})?$/);
   return m ? m[0] : z;
 }
 
-function normalizeCity(city: string) {
+function normalizeCity(city: string): string {
   return String(city || "").trim();
 }
 
-function normalizePhone(phone?: string) {
+function normalizePhone(phone?: string): string | undefined {
   const p = String(phone || "").trim();
   if (!p) return undefined;
-  const cleaned = p.replace(/[^\d+]/g, "");
-  return cleaned || undefined;
+
+  const digits = p.replace(/\D/g, "");
+  if (!digits) return undefined;
+
+  // Keep it simple: send digits only, optionally with leading US country code if already present.
+  if (digits.length === 10) return digits;
+  if (digits.length === 11 && digits.startsWith("1")) return digits;
+
+  return digits;
 }
 
-function nonEmptyOrFallback(value: string, fallback: string) {
+function nonEmptyOrFallback(value: string, fallback: string): string {
   const v = String(value || "").trim();
   return v.length ? v : fallback;
 }
 
-function looksLikeImageUrl(u: string) {
+function looksLikeImageUrl(u: string): boolean {
   const s = String(u || "").toLowerCase();
-  // Avoid sending weird placeholders; allow common image extensions
   return /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/.test(s);
+}
+
+function buildName(customer: Customer): AffirmName {
+  return {
+    first: nonEmptyOrFallback(customer.firstName, "Customer"),
+    last: nonEmptyOrFallback(customer.lastName, "Buyer"),
+  };
+}
+
+function buildAddress(customer: Customer): AffirmAddress {
+  const line1 = String(customer.address?.line1 || "").trim();
+  const line2 = String(customer.address?.line2 || "").trim();
+  const city = normalizeCity(customer.address?.city || "");
+  const state = normalizeState(customer.address?.state || "");
+  const zipcode = normalizeZip(customer.address?.zip || "");
+
+  return {
+    line1,
+    ...(line2 ? { line2 } : {}),
+    city,
+    state,
+    zipcode,
+    country_code: "US",
+  };
 }
 
 export function buildAffirmCheckout(
@@ -86,65 +168,49 @@ export function buildAffirmCheckout(
   totals: Totals,
   customer: Customer,
   merchantBase = typeof window !== "undefined" ? window.location.origin : ""
-) {
+): AffirmCheckoutPayload {
   const base = safeBase(merchantBase);
 
-  const mapped = (items || []).map((p, idx) => {
-    const unitPrice = Math.max(0, toCents(Number(p.price) || 0));
-    const qty = Math.max(1, Number(p.qty) || 1);
+  const mapped: AffirmItem[] = (items || [])
+    .map((p, idx) => {
+      const unitPrice = toCents(Number(p.price) || 0);
+      const qty = Math.max(1, Number(p.qty) || 1);
 
-    const display_name = nonEmptyOrFallback(
-      String(p.title || "").slice(0, 120),
-      `Item ${idx + 1}`
-    );
+      const display_name = nonEmptyOrFallback(
+        String(p.title || "").slice(0, 120),
+        `Item ${idx + 1}`
+      );
 
-    const item: {
-      display_name: string;
-      sku: string;
-      unit_price: number;
-      qty: number;
-      item_url: string;
-      item_image_url?: string;
-    } = {
-      display_name,
-      sku: String(p.id),
-      unit_price: unitPrice,
-      qty,
-      item_url: toAbsoluteUrl(base, p.url, "/"),
-    };
+      const item: AffirmItem = {
+        display_name,
+        sku: nonEmptyOrFallback(String(p.id), `ITEM-${idx + 1}`),
+        unit_price: unitPrice,
+        qty,
+        item_url: toAbsoluteUrl(base, p.url, "/"),
+      };
 
-    if (p.image) {
-      const abs = toAbsoluteUrl(base, p.image, "/");
-      if (looksLikeImageUrl(abs)) item.item_image_url = abs;
-    }
+      if (p.image) {
+        const abs = toAbsoluteUrl(base, p.image, "/");
+        if (looksLikeImageUrl(abs)) {
+          item.item_image_url = abs;
+        }
+      }
 
-    return item;
-  });
+      return item;
+    })
+    .filter((item) => item.unit_price > 0 && item.qty > 0);
 
-  const shippingC = Math.max(0, toCents(totals.shippingUSD ?? 0));
-  const taxC = Math.max(0, toCents(totals.taxUSD ?? 0));
-
+  const shippingC = toCents(totals.shippingUSD ?? 0);
+  const taxC = toCents(totals.taxUSD ?? 0);
   const subtotalC = mapped.reduce((acc, it) => acc + it.unit_price * it.qty, 0);
   const totalC = subtotalC + shippingC + taxC;
 
-  const name = {
-    first: String(customer.firstName || "").trim(),
-    last: String(customer.lastName || "").trim(),
-  };
-
-  const address = {
-    line1: String(customer.address.line1 || "").trim(),
-    line2: String(customer.address.line2 || "").trim() || undefined,
-    city: normalizeCity(customer.address.city),
-    state: normalizeState(customer.address.state),
-    zipcode: normalizeZip(customer.address.zip),
-    country_code: "US", // ✅ Affirm expects country_code
-  };
-
+  const name = buildName(customer);
+  const address = buildAddress(customer);
   const email = String(customer.email || "").trim();
   const phone = normalizePhone(customer.phone);
 
-  const payload: any = {
+  const payload: AffirmCheckoutPayload = {
     merchant: {
       user_confirmation_url: toAbsoluteUrl(base, "/checkout/affirm/confirm", "/"),
       user_cancel_url: toAbsoluteUrl(base, "/checkout/affirm/cancel", "/"),
@@ -157,15 +223,12 @@ export function buildAffirmCheckout(
     tax_amount: taxC,
     total: totalC,
     metadata: { mode: "modal" },
-
     billing: {
       name,
       address,
       email,
       ...(phone ? { phone_number: phone } : {}),
     },
-
-    // Send shipping always (even if shipping_amount is 0)
     shipping: {
       name,
       address,

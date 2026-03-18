@@ -13,6 +13,5 @@ export const site = {
     whatsapp: "#",
   },
 
-  // ✅ Está en /public/IMG/logo.png => se referencia como /IMG/logo.png
   logo: "/IMG/logo.png",
-};
+} as const;

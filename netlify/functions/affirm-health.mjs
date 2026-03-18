@@ -1,6 +1,6 @@
 // netlify/functions/affirm-health.mjs
 
-function json(statusCode, body) {
+function json(statusCode, body, extraHeaders = {}) {
   return {
     statusCode,
     headers: {
@@ -8,7 +8,10 @@ function json(statusCode, body) {
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "GET,POST,OPTIONS",
-      "access-control-allow-headers": "content-type",
+      "access-control-allow-headers":
+        "content-type,authorization,x-request-id,x-nf-request-id",
+      "access-control-expose-headers": "x-request-id,x-nf-request-id,x-affirm-request-id",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   };
@@ -41,7 +44,7 @@ function getBasicAuthHeader() {
 function keyPreview(k) {
   const s = String(k || "").trim();
   if (!s) return "";
-  return s.slice(0, 6) + "…" + s.slice(-4);
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
 async function readJsonOrText(res) {
@@ -51,10 +54,44 @@ async function readJsonOrText(res) {
   return { _non_json: true, text };
 }
 
+function pickAffirmRequestId(res) {
+  return (
+    res.headers.get("x-request-id") ||
+    res.headers.get("request-id") ||
+    res.headers.get("x-affirm-request-id") ||
+    null
+  );
+}
+
+function probeHint(status) {
+  return status === 401 || status === 403
+    ? "AUTH_FAIL"
+    : "AUTH_OK_OR_VALIDATION_FAIL";
+}
+
 export async function handler(event) {
+  const reqId =
+    event.headers?.["x-nf-request-id"] || event.headers?.["x-request-id"] || null;
+
   try {
-    if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
-    if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed" });
+    if (event.httpMethod === "OPTIONS") {
+      return {
+        statusCode: 204,
+        headers: {
+          "cache-control": "no-store",
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "GET,POST,OPTIONS",
+          "access-control-allow-headers":
+            "content-type,authorization,x-request-id,x-nf-request-id",
+          "access-control-expose-headers": "x-request-id,x-nf-request-id,x-affirm-request-id",
+        },
+        body: "",
+      };
+    }
+
+    if (event.httpMethod !== "GET") {
+      return json(405, { ok: false, error: "Method not allowed" });
+    }
 
     const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
     const { pub, priv } = getKeys();
@@ -65,6 +102,7 @@ export async function handler(event) {
       has_AFFIRM_PUBLIC_KEY: Boolean(pub),
       has_AFFIRM_PRIVATE_KEY: Boolean(priv),
       affirm_public_key_preview: keyPreview(pub),
+      affirm_private_key_preview: keyPreview(priv),
       affirm_base_url_effective: base,
     };
 
@@ -72,6 +110,7 @@ export async function handler(event) {
       return json(500, {
         ok: false,
         step: "env",
+        reqId,
         envCheck,
         message: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY in Netlify env vars",
       });
@@ -85,7 +124,8 @@ export async function handler(event) {
       country_code: "US",
     };
 
-    // Para /api/v2/checkout se envía el CHECKOUT OBJECT DIRECTO (sin { checkout: ... })
+    // Direct checkout probe: send checkout object directly, without wrapping in { checkout: ... }
+    // Also do NOT include merchant.public_api_key in body.
     const checkoutProbe = {
       merchant: {
         name: "VOLTRIDE ELECTRIC LLC",
@@ -128,6 +168,7 @@ export async function handler(event) {
     });
 
     const checkoutData = await readJsonOrText(resCheckout);
+    const checkoutAffirmRequestId = pickAffirmRequestId(resCheckout);
 
     const resCharges = await fetch(`${base}/charges`, {
       method: "POST",
@@ -145,29 +186,34 @@ export async function handler(event) {
     });
 
     const chargesData = await readJsonOrText(resCharges);
-
-    const hint = (status) =>
-      status === 401 || status === 403 ? "AUTH_FAIL" : "AUTH_OK_OR_VALIDATION_FAIL";
+    const chargesAffirmRequestId = pickAffirmRequestId(resCharges);
 
     return json(200, {
       ok: true,
+      reqId,
       envCheck,
       probes: {
         checkout: {
           status: resCheckout.status,
           ok: resCheckout.ok,
-          hint: hint(resCheckout.status),
+          hint: probeHint(resCheckout.status),
+          affirm_request_id: checkoutAffirmRequestId,
           data: checkoutData,
         },
         charges: {
           status: resCharges.status,
           ok: resCharges.ok,
-          hint: hint(resCharges.status),
+          hint: probeHint(resCharges.status),
+          affirm_request_id: chargesAffirmRequestId,
           data: chargesData,
         },
       },
     });
   } catch (err) {
-    return json(500, { ok: false, error: String(err?.message || err) });
+    return json(500, {
+      ok: false,
+      reqId,
+      error: String(err?.message || err),
+    });
   }
 }

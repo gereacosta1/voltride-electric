@@ -10,7 +10,7 @@ function json(statusCode, body, extraHeaders = {}) {
       "access-control-allow-methods": "POST,OPTIONS",
       "access-control-allow-headers":
         "content-type,authorization,x-request-id,x-nf-request-id",
-      "access-control-expose-headers": "x-request-id,x-nf-request-id",
+      "access-control-expose-headers": "x-request-id,x-nf-request-id,x-affirm-request-id",
       ...extraHeaders,
     },
     body: JSON.stringify(body),
@@ -18,14 +18,27 @@ function json(statusCode, body, extraHeaders = {}) {
 }
 
 function normalizeAffirmBase(raw) {
-  const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
+  const env = String(process.env.AFFIRM_ENV || process.env.VITE_AFFIRM_ENV || "prod")
+    .trim()
+    .toLowerCase();
+
+  const defaultBase =
+    env === "sandbox" || env === "test"
+      ? "https://sandbox.affirm.com"
+      : "https://api.affirm.com";
+
+  const base = String(raw || defaultBase).trim().replace(/\/+$/, "");
+
   if (base.endsWith("/api/v2")) return base;
   return `${base}/api/v2`;
 }
 
 function getKeys() {
   const pub = String(
-    process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
+    process.env.AFFIRM_PUBLIC_KEY ||
+      process.env.AFFIRM_PUBLIC_API_KEY ||
+      process.env.VITE_AFFIRM_PUBLIC_KEY ||
+      ""
   ).trim();
 
   const priv = String(
@@ -38,6 +51,7 @@ function getKeys() {
 function getBasicAuthHeader() {
   const { pub, priv } = getKeys();
   if (!pub || !priv) return null;
+
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
@@ -51,18 +65,24 @@ function parseJsonSafe(raw) {
 
 async function readJsonOrText(res) {
   const ct = String(res.headers.get("content-type") || "").toLowerCase();
-  if (ct.includes("application/json")) return await res.json().catch(() => ({}));
+
+  if (ct.includes("application/json")) {
+    return await res.json().catch(() => ({}));
+  }
+
   const text = await res.text().catch(() => "");
   return { _non_json: true, text };
 }
 
-// Remove any merchant public key fields from the checkout body.
-// Affirm wants merchant identification to come from Authorization header only.
 function stripMerchantPublicKey(checkout) {
-  if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) return checkout;
+  if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
+    return checkout;
+  }
 
   const merchant =
-    checkout.merchant && typeof checkout.merchant === "object" && !Array.isArray(checkout.merchant)
+    checkout.merchant &&
+    typeof checkout.merchant === "object" &&
+    !Array.isArray(checkout.merchant)
       ? checkout.merchant
       : {};
 
@@ -76,9 +96,18 @@ function stripMerchantPublicKey(checkout) {
 
 function pickTokenAndRedirect(data) {
   const checkout_token =
-    (data && typeof data === "object" && (data.checkout_token || data?.data?.checkout_token)) || "";
+    data?.checkout_token ||
+    data?.data?.checkout_token ||
+    data?.token ||
+    data?.data?.token ||
+    "";
+
   const redirect_url =
-    (data && typeof data === "object" && (data.redirect_url || data?.data?.redirect_url)) || "";
+    data?.redirect_url ||
+    data?.data?.redirect_url ||
+    data?.redirect ||
+    data?.data?.redirect ||
+    "";
 
   return {
     checkout_token: String(checkout_token || "").trim(),
@@ -86,10 +115,48 @@ function pickTokenAndRedirect(data) {
   };
 }
 
+function validateCheckout(checkout) {
+  if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
+    return "Missing checkout";
+  }
+
+  if (!checkout.merchant || typeof checkout.merchant !== "object") {
+    return "Missing checkout.merchant";
+  }
+
+  if (!checkout.merchant.user_confirmation_url) {
+    return "Missing merchant.user_confirmation_url";
+  }
+
+  if (!checkout.merchant.user_cancel_url) {
+    return "Missing merchant.user_cancel_url";
+  }
+
+  if (!Array.isArray(checkout.items) || checkout.items.length === 0) {
+    return "Invalid checkout.items";
+  }
+
+  const total = Number(checkout.total);
+  if (!Number.isFinite(total) || total <= 0) {
+    return "Invalid checkout.total";
+  }
+
+  const currency = String(checkout.currency || "USD").trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return "Invalid checkout.currency";
+  }
+
+  return null;
+}
+
 export async function handler(event) {
   const startedAt = Date.now();
+
   const reqId =
-    event.headers?.["x-nf-request-id"] || event.headers?.["x-request-id"] || null;
+    event.headers?.["x-nf-request-id"] ||
+    event.headers?.["x-request-id"] ||
+    event.headers?.["X-Nf-Request-Id"] ||
+    null;
 
   console.log("[affirm-checkout] incoming", {
     reqId,
@@ -108,14 +175,15 @@ export async function handler(event) {
           "access-control-allow-methods": "POST,OPTIONS",
           "access-control-allow-headers":
             "content-type,authorization,x-request-id,x-nf-request-id",
-          "access-control-expose-headers": "x-request-id,x-nf-request-id",
+          "access-control-expose-headers":
+            "x-request-id,x-nf-request-id,x-affirm-request-id",
         },
         body: "",
       };
     }
 
     if (event.httpMethod !== "POST") {
-      return json(405, { error: "Method not allowed" });
+      return json(405, { ok: false, error: "Method not allowed" });
     }
 
     const auth = getBasicAuthHeader();
@@ -125,39 +193,39 @@ export async function handler(event) {
       return json(500, {
         ok: false,
         error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY",
+        has_public_key: Boolean(pub),
+        has_private_key: Boolean(priv),
       });
     }
 
-    const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
-    const endpoint = `${base}/checkout/direct`;
-
     const payload = parseJsonSafe(event.body);
-    if (!payload) return json(400, { error: "Invalid JSON body" });
+
+    if (!payload) {
+      return json(400, {
+        ok: false,
+        error: "Invalid JSON body",
+      });
+    }
 
     const debug_id = payload.debug_id ? String(payload.debug_id).trim() : null;
 
     let checkout = payload.checkout;
+    const validationError = validateCheckout(checkout);
 
-    if (!checkout || typeof checkout !== "object" || Array.isArray(checkout)) {
-      return json(400, { error: "Missing checkout" });
+    if (validationError) {
+      return json(400, {
+        ok: false,
+        error: validationError,
+        debug_id,
+      });
     }
 
-    if (!Array.isArray(checkout.items) || checkout.items.length === 0) {
-      return json(400, { error: "Invalid checkout.items" });
-    }
-
-    const total = Number(checkout.total);
-    if (!Number.isFinite(total) || total <= 0) {
-      return json(400, { error: "Invalid checkout.total" });
-    }
-
-    const currency = String(checkout.currency || "USD").trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) {
-      return json(400, { error: "Invalid checkout.currency" });
-    }
-
-    // Important: do NOT send merchant.public_api_key in body.
     checkout = stripMerchantPublicKey(checkout);
+
+    const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
+    const endpoint = `${base}/checkout/direct`;
+    const total = Number(checkout.total);
+    const currency = String(checkout.currency || "USD").trim().toUpperCase();
 
     console.log("[affirm-checkout] request", {
       reqId,
@@ -166,18 +234,23 @@ export async function handler(event) {
       items_count: checkout.items.length,
       total,
       currency,
+      has_public_key: Boolean(pub),
+      has_private_key: Boolean(priv),
+      public_key_prefix: pub ? `${pub.slice(0, 8)}...` : null,
       has_billing: Boolean(checkout.billing),
       has_shipping: Boolean(checkout.shipping),
       has_merchant_public_api_key: Boolean(checkout?.merchant?.public_api_key),
       has_user_confirmation_url: Boolean(checkout?.merchant?.user_confirmation_url),
       has_user_cancel_url: Boolean(checkout?.merchant?.user_cancel_url),
-      user_confirmation_url_action: checkout?.merchant?.user_confirmation_url_action || null,
+      user_confirmation_url_action:
+        checkout?.merchant?.user_confirmation_url_action || null,
     });
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     let res;
+
     try {
       res = await fetch(endpoint, {
         method: "POST",
@@ -194,6 +267,7 @@ export async function handler(event) {
 
     const data = await readJsonOrText(res);
     const { checkout_token, redirect_url } = pickTokenAndRedirect(data);
+
     const affirmRequestId =
       res.headers.get("x-request-id") ||
       res.headers.get("request-id") ||
@@ -247,15 +321,18 @@ export async function handler(event) {
         reqId,
         debug_id,
         affirm_request_id: affirmRequestId,
+        checkout_token,
+        redirect_url,
         data,
       },
       affirmRequestId ? { "x-affirm-request-id": affirmRequestId } : {}
     );
   } catch (err) {
-    const isAbort = err && (err.name === "AbortError" || String(err).includes("AbortError"));
+    const isAbort =
+      err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-checkout] fatal", {
-      reqId: event.headers?.["x-nf-request-id"] || null,
+      reqId,
       error: isAbort ? "Request timeout" : String(err?.message || err),
       duration_ms: Date.now() - startedAt,
     });

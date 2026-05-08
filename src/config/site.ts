@@ -6,12 +6,12 @@ export const site = {
   address: "11510 Biscayne Blvd, FL 33181",
   phoneE164: "+17864091226",
   phonePretty: "(786) 409-1226",
-  email: "info@voltrideelectric.com",
+  email: "Voltrideelectric1@gmail.com",
 
   socials: {
     instagram: "#",
-    whatsapp: "#",
+    whatsapp: "https://wa.me/17864091226",
   },
 
-  logo: "/IMG/logo.png",
+  logo: "/IMG/voltride-logo.png",
 } as const;

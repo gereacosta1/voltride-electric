@@ -33,18 +33,32 @@ export default function PayWithAffirm() {
         id,
         sku,
         name,
-        price: Number(it?.price) || 0,
+        price: Math.max(0, Number(it?.price) || 0),
         qty: Math.max(1, Number(it?.qty) || 1),
         url: typeof it?.url === "string" && it.url.trim() ? it.url : "/",
-        image: typeof it?.image === "string" && it.image.trim() ? it.image : undefined,
+        image:
+          typeof it?.image === "string" && it.image.trim()
+            ? it.image
+            : undefined,
       };
     });
   }, [items]);
 
+  const safeTotal = Math.max(0, Number(totalUSD) || 0);
+  const canCheckout = cartItems.length > 0 && safeTotal > 0;
+
+  if (!canCheckout) {
+    return (
+      <button className="btn btn-primary w-full opacity-60" type="button" disabled>
+        Pay with Affirm
+      </button>
+    );
+  }
+
   return (
     <AffirmButton
       cartItems={cartItems}
-      totalUSD={Math.max(0, Number(totalUSD) || 0)}
+      totalUSD={safeTotal}
       shippingUSD={0}
       taxUSD={0}
     />

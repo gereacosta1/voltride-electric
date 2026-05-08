@@ -10,7 +10,8 @@ function json(statusCode, body, extraHeaders = {}) {
       "access-control-allow-methods": "POST,OPTIONS",
       "access-control-allow-headers":
         "content-type,authorization,x-request-id,x-nf-request-id",
-      "access-control-expose-headers": "x-request-id,x-nf-request-id,x-affirm-request-id",
+      "access-control-expose-headers":
+        "x-request-id,x-nf-request-id,x-affirm-request-id",
       ...extraHeaders,
     },
     body: JSON.stringify(body),
@@ -18,14 +19,27 @@ function json(statusCode, body, extraHeaders = {}) {
 }
 
 function normalizeAffirmBase(raw) {
-  const base = String(raw || "https://api.affirm.com").trim().replace(/\/+$/, "");
+  const env = String(process.env.AFFIRM_ENV || process.env.VITE_AFFIRM_ENV || "prod")
+    .trim()
+    .toLowerCase();
+
+  const defaultBase =
+    env === "sandbox" || env === "test"
+      ? "https://sandbox.affirm.com"
+      : "https://api.affirm.com";
+
+  const base = String(raw || defaultBase).trim().replace(/\/+$/, "");
+
   if (base.endsWith("/api/v2")) return base;
   return `${base}/api/v2`;
 }
 
 function getKeys() {
   const pub = String(
-    process.env.AFFIRM_PUBLIC_KEY || process.env.AFFIRM_PUBLIC_API_KEY || ""
+    process.env.AFFIRM_PUBLIC_KEY ||
+      process.env.AFFIRM_PUBLIC_API_KEY ||
+      process.env.VITE_AFFIRM_PUBLIC_KEY ||
+      ""
   ).trim();
 
   const priv = String(
@@ -37,7 +51,9 @@ function getKeys() {
 
 function getBasicAuthHeader() {
   const { pub, priv } = getKeys();
+
   if (!pub || !priv) return null;
+
   return "Basic " + Buffer.from(`${pub}:${priv}`).toString("base64");
 }
 
@@ -51,7 +67,11 @@ function parseJsonSafe(raw) {
 
 async function readJsonOrText(res) {
   const ct = String(res.headers.get("content-type") || "").toLowerCase();
-  if (ct.includes("application/json")) return await res.json().catch(() => ({}));
+
+  if (ct.includes("application/json")) {
+    return await res.json().catch(() => ({}));
+  }
+
   const text = await res.text().catch(() => "");
   return { _non_json: true, text };
 }
@@ -65,10 +85,28 @@ function pickAffirmRequestId(res) {
   );
 }
 
+function validateBody(body) {
+  const checkout_token = String(body.checkout_token || "").trim();
+  const order_id = String(body.order_id || "").trim();
+  const amount = Math.round(Number(body.amount_cents));
+  const currency = String(body.currency || "USD").trim().toUpperCase();
+
+  if (!checkout_token) return "Missing checkout_token";
+  if (!order_id) return "Missing order_id";
+  if (!Number.isFinite(amount) || amount <= 0) return "Invalid amount_cents";
+  if (!/^[A-Z]{3}$/.test(currency)) return "Invalid currency";
+
+  return null;
+}
+
 export async function handler(event) {
   const startedAt = Date.now();
+
   const reqId =
-    event.headers?.["x-nf-request-id"] || event.headers?.["x-request-id"] || null;
+    event.headers?.["x-nf-request-id"] ||
+    event.headers?.["x-request-id"] ||
+    event.headers?.["X-Nf-Request-Id"] ||
+    null;
 
   console.log("[affirm-authorize] incoming", {
     reqId,
@@ -87,14 +125,18 @@ export async function handler(event) {
           "access-control-allow-methods": "POST,OPTIONS",
           "access-control-allow-headers":
             "content-type,authorization,x-request-id,x-nf-request-id",
-          "access-control-expose-headers": "x-request-id,x-nf-request-id,x-affirm-request-id",
+          "access-control-expose-headers":
+            "x-request-id,x-nf-request-id,x-affirm-request-id",
         },
         body: "",
       };
     }
 
     if (event.httpMethod !== "POST") {
-      return json(405, { ok: false, error: "Method not allowed" });
+      return json(405, {
+        ok: false,
+        error: "Method not allowed",
+      });
     }
 
     const auth = getBasicAuthHeader();
@@ -104,40 +146,38 @@ export async function handler(event) {
       return json(500, {
         ok: false,
         error: "Missing AFFIRM_PUBLIC_KEY or AFFIRM_PRIVATE_KEY",
+        has_public_key: Boolean(pub),
+        has_private_key: Boolean(priv),
       });
     }
 
-    const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
-    const endpoint = `${base}/charges`;
-
     const body = parseJsonSafe(event.body);
+
     if (!body) {
-      return json(400, { ok: false, error: "Invalid JSON body" });
+      return json(400, {
+        ok: false,
+        error: "Invalid JSON body",
+      });
+    }
+
+    const validationError = validateBody(body);
+
+    if (validationError) {
+      return json(400, {
+        ok: false,
+        error: validationError,
+      });
     }
 
     const debug_id = body.debug_id ? String(body.debug_id).trim() : null;
     const checkout_token = String(body.checkout_token || "").trim();
     const order_id = String(body.order_id || "").trim();
-    const amount_cents_raw = body.amount_cents;
+    const amount = Math.round(Number(body.amount_cents));
     const currency = String(body.currency || "USD").trim().toUpperCase();
     const capture = body.capture !== false;
 
-    if (!checkout_token) {
-      return json(400, { ok: false, error: "Missing checkout_token" });
-    }
-
-    if (!order_id) {
-      return json(400, { ok: false, error: "Missing order_id" });
-    }
-
-    const amount = Math.round(Number(amount_cents_raw));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return json(400, { ok: false, error: "Invalid amount_cents" });
-    }
-
-    if (!/^[A-Z]{3}$/.test(currency)) {
-      return json(400, { ok: false, error: "Invalid currency" });
-    }
+    const base = normalizeAffirmBase(process.env.AFFIRM_BASE_URL);
+    const endpoint = `${base}/charges`;
 
     console.log("[affirm-authorize] request", {
       reqId,
@@ -147,6 +187,9 @@ export async function handler(event) {
       amount_cents: amount,
       currency,
       capture,
+      has_public_key: Boolean(pub),
+      has_private_key: Boolean(priv),
+      public_key_prefix: pub ? `${pub.slice(0, 8)}...` : null,
       token_prefix: checkout_token ? `${checkout_token.slice(0, 8)}…` : null,
     });
 
@@ -154,6 +197,7 @@ export async function handler(event) {
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     let res;
+
     try {
       res = await fetch(endpoint, {
         method: "POST",
@@ -178,7 +222,7 @@ export async function handler(event) {
     const affirmRequestId = pickAffirmRequestId(res);
 
     const affirmId =
-      (data && typeof data === "object" && (data.id || data.charge_id)) || null;
+      data && typeof data === "object" ? data.id || data.charge_id || null : null;
 
     console.log("[affirm-authorize] response", {
       reqId,
@@ -226,12 +270,14 @@ export async function handler(event) {
         reqId,
         debug_id,
         affirm_request_id: affirmRequestId,
+        affirm_id: affirmId,
         data,
       },
       affirmRequestId ? { "x-affirm-request-id": affirmRequestId } : {}
     );
   } catch (err) {
-    const isAbort = err && (err.name === "AbortError" || String(err).includes("AbortError"));
+    const isAbort =
+      err && (err.name === "AbortError" || String(err).includes("AbortError"));
 
     console.error("[affirm-authorize] fatal", {
       reqId,

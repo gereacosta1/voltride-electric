@@ -19,13 +19,15 @@ export default function Footer() {
                 />
                 <div>
                   <div className="font-extrabold">{site.name}</div>
-                  <div className="text-sm text-[var(--muted)]">{site.brandTagline}</div>
+                  <div className="text-sm text-[var(--muted)]">
+                    {site.brandTagline}
+                  </div>
                 </div>
               </div>
 
               <p className="mt-4 text-sm text-[var(--muted)] leading-relaxed">
-                Premium electric mobility with fast checkout. Scooters, e-bikes & accessories —
-                designed for city rides in Miami.
+                Premium electric mobility with fast checkout. Scooters, e-bikes
+                and accessories designed for city rides in Miami.
               </p>
             </div>
 
@@ -33,13 +35,21 @@ export default function Footer() {
               <div className="font-black mb-3">Contact</div>
               <div className="text-[var(--muted)] leading-relaxed">
                 <div>{site.address}</div>
+
                 <div className="mt-2">
-                  <a className="underline decoration-white/20 hover:decoration-white/60" href={`tel:${site.phoneE164}`}>
+                  <a
+                    className="underline decoration-white/20 hover:decoration-white/60"
+                    href={`tel:${site.phoneE164}`}
+                  >
                     {site.phonePretty}
                   </a>
                 </div>
+
                 <div className="mt-1">
-                  <a className="underline decoration-white/20 hover:decoration-white/60" href={`mailto:${site.email}`}>
+                  <a
+                    className="underline decoration-white/20 hover:decoration-white/60"
+                    href={`mailto:${site.email}`}
+                  >
                     {site.email}
                   </a>
                 </div>
@@ -47,11 +57,22 @@ export default function Footer() {
             </div>
 
             <div className="text-sm">
-              <div className="font-black mb-3">Store</div>
+              <div className="font-black mb-3">Pickup checklist</div>
               <div className="text-[var(--muted)] leading-relaxed">
-                <div>Pay with Affirm or card</div>
-                <div>Fast local pickup (when available)</div>
-                <div>Support & warranty guidance</div>
+                <div>Bring ID recommended</div>
+                <div>Have your order/product name ready</div>
+                <div>Ask for compatibility, charger, specs and pickup help</div>
+              </div>
+
+              <div className="mt-4 text-sm">
+                <a
+                  href={site.socials.whatsapp}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-xl border border-white/10 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/15 transition"
+                >
+                  Contact on WhatsApp
+                </a>
               </div>
 
               <div className="mt-4 text-xs text-[var(--muted)]">

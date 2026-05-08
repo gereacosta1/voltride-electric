@@ -34,7 +34,9 @@ function SectionTitle({
         </div>
       ) : null}
 
-      <h2 className="h-serif mt-2 text-4xl leading-[1.02] md:text-5xl">{title}</h2>
+      <h2 className="h-serif mt-2 text-4xl leading-[1.02] md:text-5xl">
+        {title}
+      </h2>
 
       {subtitle ? (
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
@@ -127,6 +129,12 @@ function HomePage() {
   const featured = useMemo(() => products.filter((p) => p.featured).slice(0, 6), []);
   const [tab, setTab] = useState<"all" | ProductCategory>("all");
 
+  const storeImages = [
+    "/IMG/store-front.jpeg",
+    "/IMG/store-inside.jpeg",
+    "/IMG/tienda-fisica-voltride.jpeg",
+  ];
+
   const filtered = useMemo(() => {
     if (tab === "all") return products;
     return products.filter((p) => p.category === tab);
@@ -148,23 +156,25 @@ function HomePage() {
 
       <main className="mx-auto max-w-6xl px-4">
         <section className="section">
-          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.25fr_.75fr]">
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.15fr_.85fr]">
             <div className="glass card p-6 md:p-10">
               <div className="badge inline-flex items-center gap-2">
                 <IconBolt className="h-4 w-4" />
-                Miami • Electric Mobility • Fast Checkout
+                Miami • Electric Mobility • Local Store
               </div>
 
               <h1 className="h-serif mt-5 text-5xl leading-[0.98] md:text-6xl">
                 Clean power.
                 <br />
-                <span style={{ color: "rgba(229,231,235,.92)" }}>Bold rides.</span>
+                <span style={{ color: "rgba(229,231,235,.92)" }}>
+                  Bold rides.
+                </span>
               </h1>
 
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
-                Premium scooters, e-bikes and accessories. A modern storefront with
-                smooth navigation, a pro cart experience, and checkout options built
-                for conversion.
+                Premium scooters, e-bikes and accessories from Voltride Electric
+                LLC. Visit our Miami store, ask about availability, or checkout
+                online with card and Affirm options.
               </p>
 
               <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -183,13 +193,13 @@ function HomePage() {
                 <button
                   className="btn px-6 py-3"
                   onClick={() =>
-                    document.getElementById("contact")?.scrollIntoView({
+                    document.getElementById("store")?.scrollIntoView({
                       behavior: "smooth",
                     })
                   }
                   type="button"
                 >
-                  Get a quote
+                  Visit store
                 </button>
               </div>
 
@@ -197,7 +207,7 @@ function HomePage() {
                 <span className="badge">Pay with Affirm</span>
                 <span className="badge">Pay by card</span>
                 <span className="badge">Local pickup</span>
-                <span className="badge">Support-ready</span>
+                <span className="badge">Miami showroom</span>
               </div>
 
               <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -210,8 +220,8 @@ function HomePage() {
                   <div className="mt-1 text-2xl font-black">Fast</div>
                 </div>
                 <div className="glass card p-4">
-                  <div className="text-xs text-[var(--muted)]">Style</div>
-                  <div className="mt-1 text-2xl font-black">Modern</div>
+                  <div className="text-xs text-[var(--muted)]">Pickup</div>
+                  <div className="mt-1 text-2xl font-black">Local</div>
                 </div>
                 <div className="glass card p-4">
                   <div className="text-xs text-[var(--muted)]">Location</div>
@@ -221,55 +231,59 @@ function HomePage() {
             </div>
 
             <div className="glass card relative overflow-hidden">
+              <img
+                src="/IMG/store-front.jpeg"
+                alt="Voltride Electric storefront"
+                className="absolute inset-0 h-full w-full object-cover opacity-70"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/20" />
               <div
                 className="absolute inset-0"
                 style={{
                   background:
-                    "linear-gradient(135deg, rgba(217,70,239,.35), rgba(163,230,53,.20), rgba(34,211,238,.18))",
-                  filter: "blur(0px)",
+                    "linear-gradient(135deg, rgba(217,70,239,.32), rgba(163,230,53,.20), rgba(34,211,238,.16))",
                 }}
               />
-              <div className="relative p-6 md:p-8">
-                <div className="text-xs uppercase tracking-[.22em] text-white/70">
-                  Today’s highlights
+
+              <div className="relative flex min-h-[420px] flex-col justify-end p-6 md:p-8">
+                <div className="badge w-fit">Physical Store</div>
+
+                <h2 className="h-serif mt-4 text-4xl leading-tight">
+                  Visit Voltride Electric in Miami.
+                </h2>
+
+                <p className="mt-3 text-sm leading-relaxed text-white/75">
+                  Scooters, e-bikes and accessories available for local pickup.
+                  Message us first to confirm stock.
+                </p>
+
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {storeImages.map((img) => (
+                    <img
+                      key={img}
+                      src={img}
+                      alt="Voltride Electric store"
+                      className="h-20 rounded-2xl border border-white/10 object-cover"
+                      loading="lazy"
+                    />
+                  ))}
                 </div>
 
-                <div className="mt-4 space-y-3">
-                  <div className="glass card p-4">
-                    <div className="font-black">Best sellers</div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">
-                      Scooters + E-bikes curated for city comfort.
-                    </div>
-                  </div>
-
-                  <div className="glass card p-4">
-                    <div className="font-black">Premium feel</div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">
-                      A gradient editorial UI with smooth sections (no hard cuts).
-                    </div>
-                  </div>
-
-                  <div className="glass card p-4">
-                    <div className="font-black">Need help?</div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">
-                      Message us for pricing, availability, and pickup options.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 text-xs text-[var(--muted)]">
-                  Address: {site.address}
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                  <a
+                    className="btn btn-primary px-5 py-3 text-center"
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get directions
+                  </a>
+                  <a className="btn px-5 py-3 text-center" href={`mailto:${site.email}`}>
+                    Email us
+                  </a>
                 </div>
               </div>
-
-              <div
-                className="absolute -bottom-20 -right-20 h-[260px] w-[260px]"
-                style={{
-                  background: "rgba(0,0,0,.32)",
-                  transform: "rotate(20deg)",
-                  borderRadius: 36,
-                }}
-              />
             </div>
           </div>
         </section>
@@ -278,7 +292,7 @@ function HomePage() {
           <SectionTitle
             eyebrow="Curated"
             title="Featured picks"
-            subtitle="A clean set of products to make the home feel full and premium. Add more items anytime and the layout stays consistent."
+            subtitle="A clean selection of scooters, e-bikes and accessories ready for quick browsing."
           />
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
@@ -292,7 +306,7 @@ function HomePage() {
           <SectionTitle
             eyebrow="Catalog"
             title="Explore the lineup"
-            subtitle="Filter by category and add items to your cart. Designed to feel like a real store — not a demo."
+            subtitle="Filter by category and add items to your cart. Ask us about availability before pickup."
           />
 
           <div className="mb-6 flex flex-wrap gap-2">
@@ -336,84 +350,94 @@ function HomePage() {
         <section className="section anchor" id="about">
           <SectionTitle
             eyebrow="About"
-            title="Built for a premium conversion flow"
-            subtitle="The goal is a site that looks modern, feels full, and converts. Simple structure, high-end UI, strong cart, and clean checkout."
+            title="Electric mobility with real local support"
+            subtitle="Voltride Electric LLC helps customers choose scooters, e-bikes and accessories for daily city mobility."
           />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="glass card p-6 md:p-8">
               <div className="h-serif text-3xl leading-tight">
-                We blend electric mobility with a clean, editorial design.
+                Shop online, then confirm pickup or availability with our team.
               </div>
+
               <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-                This layout keeps sections visually connected (difuminado) so the
-                page feels like one premium experience — not separate blocks.
-                Perfect for adding more products and sections later.
+                Browse the catalog, ask about the product you like, and we’ll help
+                with availability, charger details, compatibility and pickup options.
               </p>
 
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="glass card p-4">
-                  <div className="font-black">Catalog-ready</div>
+                  <div className="font-black">Scooters</div>
                   <div className="mt-1 text-sm text-[var(--muted)]">
-                    Categories + featured picks
+                    Daily city rides
                   </div>
                 </div>
                 <div className="glass card p-4">
-                  <div className="font-black">Pro cart UX</div>
+                  <div className="font-black">E-bikes</div>
                   <div className="mt-1 text-sm text-[var(--muted)]">
-                    Stepper, ESC close, scroll lock
+                    Comfortable mobility
                   </div>
                 </div>
                 <div className="glass card p-4">
-                  <div className="font-black">Brand look</div>
+                  <div className="font-black">Accessories</div>
                   <div className="mt-1 text-sm text-[var(--muted)]">
-                    Voltride gradient + serif headlines
+                    Audio and extras
                   </div>
                 </div>
                 <div className="glass card p-4">
-                  <div className="font-black">Fast edits</div>
-                  <div className="mt-1 text-sm text-[var(--muted)]">Add sections easily</div>
+                  <div className="font-black">Pickup help</div>
+                  <div className="mt-1 text-sm text-[var(--muted)]">
+                    Local support
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="glass card p-6 md:p-8">
-              <div className="text-xs uppercase tracking-[.22em] text-[var(--muted)]">
-                Quick store info
-              </div>
+            <div className="glass card overflow-hidden">
+              <img
+                src="/IMG/store-inside.jpeg"
+                alt="Voltride Electric showroom"
+                className="h-72 w-full object-cover"
+                loading="lazy"
+              />
 
-              <div className="mt-4 space-y-3">
-                <div className="glass card p-4">
-                  <div className="font-black">Address</div>
-                  <div className="mt-1 text-sm text-[var(--muted)]">{site.address}</div>
+              <div className="p-6 md:p-8">
+                <div className="text-xs uppercase tracking-[.22em] text-[var(--muted)]">
+                  Quick store info
                 </div>
-                <div className="glass card p-4">
-                  <div className="font-black">Phone</div>
-                  <div className="mt-1 text-sm">
-                    <a
-                      className="underline decoration-white/20 hover:decoration-white/60"
-                      href={`tel:${site.phoneE164}`}
-                    >
-                      {site.phonePretty}
-                    </a>
+
+                <div className="mt-4 space-y-3">
+                  <div className="glass card p-4">
+                    <div className="font-black">Address</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      {site.address}
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Phone</div>
+                    <div className="mt-1 text-sm">
+                      <a
+                        className="underline decoration-white/20 hover:decoration-white/60"
+                        href={`tel:${site.phoneE164}`}
+                      >
+                        {site.phonePretty}
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Email</div>
+                    <div className="mt-1 text-sm">
+                      <a
+                        className="underline decoration-white/20 hover:decoration-white/60"
+                        href={`mailto:${site.email}`}
+                      >
+                        {site.email}
+                      </a>
+                    </div>
                   </div>
                 </div>
-                <div className="glass card p-4">
-                  <div className="font-black">Email</div>
-                  <div className="mt-1 text-sm">
-                    <a
-                      className="underline decoration-white/20 hover:decoration-white/60"
-                      href={`mailto:${site.email}`}
-                    >
-                      {site.email}
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 text-xs text-[var(--muted)]">
-                Tip: when you add more products, mark some as <b>featured</b> to
-                keep the homepage strong.
               </div>
             </div>
           </div>
@@ -427,84 +451,73 @@ function HomePage() {
           />
 
           <div className="glass card p-4 md:p-6">
-            <div className="storeGrid">
-              <div className="storeSide">
-                <div className="storeKicker">Pickup essentials</div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[.8fr_1.4fr_.8fr]">
+              <div className="glass card p-5">
+                <div className="text-xs uppercase tracking-[.22em] text-[var(--muted)]">
+                  Pickup essentials
+                </div>
 
-                <div className="storeBlock">
-                  <div className="storeBlockTitle">Local pickup</div>
-                  <div className="storeText">
+                <div className="mt-4">
+                  <div className="font-black">Local pickup</div>
+                  <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                     Reserve your item, we confirm availability, then you pick up
                     in-store. Fast and simple.
                   </div>
-
-                  <div className="storeSteps">
-                    <div className="storeStep">
-                      <div className="storeStepNum">1</div>
-                      <div className="storeStepBody">
-                        <div className="storeStepTitle">Ask about stock</div>
-                        <div className="storeText">
-                          Send a message with the product name (or a screenshot).
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="storeStep">
-                      <div className="storeStepNum">2</div>
-                      <div className="storeStepBody">
-                        <div className="storeStepTitle">We confirm</div>
-                        <div className="storeText">
-                          We confirm availability + pickup time window.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="storeStep">
-                      <div className="storeStepNum">3</div>
-                      <div className="storeStepBody">
-                        <div className="storeStepTitle">Pickup</div>
-                        <div className="storeText">
-                          Come by the store and you’re good to go.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="storeBadges">
-                    <span className="badge">Pickup</span>
-                    <span className="badge">Scooters</span>
-                    <span className="badge">E-bikes</span>
-                    <span className="badge">Accessories</span>
-                  </div>
                 </div>
 
-                <div className="storeBlock">
-                  <div className="storeBlockTitle">Hours</div>
-                  <div className="storeText">
-                    Hours can vary. Message us and we’ll confirm before you come.
+                <div className="mt-5 space-y-3">
+                  <div className="glass card p-4">
+                    <div className="font-black">1. Ask about stock</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      Send the product name or screenshot.
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">2. We confirm</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      We confirm availability and pickup time.
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">3. Pickup</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      Come by the store and you’re good to go.
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="storeMediaWrap">
-                <div className="storeMedia">
-                  <img
-                    src="/IMG/tienda-fisica-voltride.jpeg"
-                    alt="Voltride Electric LLC physical store"
-                    loading="lazy"
-                    className="storeImg"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
+              <div className="glass card overflow-hidden">
+                <img
+                  src="/IMG/tienda-fisica-voltride.jpeg"
+                  alt="Voltride Electric LLC physical store"
+                  loading="lazy"
+                  className="h-[420px] w-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+
+                <div className="grid grid-cols-3 gap-2 p-3">
+                  {storeImages.map((img) => (
+                    <img
+                      key={img}
+                      src={img}
+                      alt="Voltride Electric store"
+                      className="h-24 w-full rounded-2xl object-cover"
+                      loading="lazy"
+                    />
+                  ))}
                 </div>
 
-                <div className="storeMediaFooter">
+                <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm text-[var(--muted)]">
                     Address: <span className="text-white/90">{site.address}</span>
                   </div>
 
-                  <div className="storeActions">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <a
                       className="btn px-5 py-3 text-center"
                       href={mapsUrl}
@@ -528,50 +541,54 @@ function HomePage() {
                 </div>
               </div>
 
-              <div className="storeSide">
-                <div className="storeKicker">Contact</div>
-
-                <div className="storeBlock">
-                  <div className="storeBlockTitle">Call / text</div>
-                  <div className="storeText">
-                    <a
-                      className="underline decoration-white/20 hover:decoration-white/60"
-                      href={`tel:${site.phoneE164}`}
-                    >
-                      {site.phonePretty}
-                    </a>
-                  </div>
-
-                  <div className="storeBlockTitle mt-4">Email</div>
-                  <div className="storeText">
-                    <a
-                      className="underline decoration-white/20 hover:decoration-white/60"
-                      href={`mailto:${site.email}`}
-                    >
-                      {site.email}
-                    </a>
-                  </div>
+              <div className="glass card p-5">
+                <div className="text-xs uppercase tracking-[.22em] text-[var(--muted)]">
+                  Contact
                 </div>
 
-                <div className="storeBlock">
-                  <div className="storeBlockTitle">Pickup checklist</div>
-                  <ul className="storeList">
-                    <li>Bring ID (recommended)</li>
-                    <li>Have your order / product name ready</li>
-                    <li>Ask for compatibility (charger, specs, etc.)</li>
-                    <li>We can help choose the right model for your needs</li>
-                  </ul>
-                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="glass card p-4">
+                    <div className="font-black">Call / text</div>
+                    <div className="mt-1 text-sm">
+                      <a
+                        className="underline decoration-white/20 hover:decoration-white/60"
+                        href={`tel:${site.phoneE164}`}
+                      >
+                        {site.phonePretty}
+                      </a>
+                    </div>
 
-                <div className="storeBlock">
-                  <div className="storeBlockTitle">Payments</div>
-                  <div className="storeText">
-                    Card + Affirm options available (online checkout).
+                    <div className="mt-4 font-black">Email</div>
+                    <div className="mt-1 text-sm">
+                      <a
+                        className="underline decoration-white/20 hover:decoration-white/60"
+                        href={`mailto:${site.email}`}
+                      >
+                        {site.email}
+                      </a>
+                    </div>
                   </div>
-                  <div className="storeBadges">
-                    <span className="badge">Affirm</span>
-                    <span className="badge">Card</span>
-                    <span className="badge">Support</span>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Pickup checklist</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[var(--muted)]">
+                      <li>Bring ID recommended</li>
+                      <li>Have product name ready</li>
+                      <li>Ask for charger/specs</li>
+                      <li>Confirm pickup time first</li>
+                    </ul>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Payments</div>
+                    <div className="mt-2 text-sm text-[var(--muted)]">
+                      Card + Affirm options available online.
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="badge">Affirm</span>
+                      <span className="badge">Card</span>
+                      <span className="badge">Support</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -601,10 +618,10 @@ function HomePage() {
                   <input
                     name="name"
                     className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none focus:ring-2"
-                    style={{ boxShadow: "0 0 0 0 rgba(0,0,0,0)" }}
                     placeholder="Your name"
                   />
                 </div>
+
                 <div>
                   <label className="text-xs text-[var(--muted)]">Phone</label>
                   <input
@@ -646,44 +663,55 @@ function HomePage() {
               </div>
 
               <div className="mt-3 text-xs text-[var(--muted)]">
-                If you want WhatsApp button later, we can add it in 2 minutes.
+                Direct email: {site.email}
               </div>
             </form>
 
-            <div className="glass card p-6 md:p-8">
-              <div className="h-serif text-3xl leading-tight">
-                Storefront that feels like a brand — not a template.
-              </div>
+            <div className="glass card overflow-hidden">
+              <img
+                src="/IMG/store-front.jpeg"
+                alt="Voltride Electric storefront"
+                className="h-64 w-full object-cover"
+                loading="lazy"
+              />
 
-              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-                You asked for: fuller page, stronger home, better cart, innovative
-                styling, gradient background like Monograph, typography vibe like Our
-                Revolution, and a diagonal cut concept. This setup is made for that.
-              </p>
+              <div className="p-6 md:p-8">
+                <div className="h-serif text-3xl leading-tight">
+                  Need help choosing the right ride?
+                </div>
 
-              <div className="mt-6 space-y-3">
-                <div className="glass card p-4">
-                  <div className="font-black">Next upgrade idea</div>
-                  <div className="mt-1 text-sm text-[var(--muted)]">
-                    Add “Product details” modal with gallery + specs.
+                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                  Contact us with the product name, your budget and how you plan to
+                  use it. We can help you choose between scooters, e-bikes and
+                  accessories.
+                </p>
+
+                <div className="mt-6 space-y-3">
+                  <div className="glass card p-4">
+                    <div className="font-black">Best for quick city rides</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      Electric scooters
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Best for comfort</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      E-bikes
+                    </div>
+                  </div>
+
+                  <div className="glass card p-4">
+                    <div className="font-black">Starting featured price</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      {money(featuredMinPrice)}
+                    </div>
                   </div>
                 </div>
-                <div className="glass card p-4">
-                  <div className="font-black">Another upgrade</div>
-                  <div className="mt-1 text-sm text-[var(--muted)]">
-                    Add “Testimonials / Reviews” to build trust.
-                  </div>
-                </div>
-                <div className="glass card p-4">
-                  <div className="font-black">Conversion boost</div>
-                  <div className="mt-1 text-sm text-[var(--muted)]">
-                    Add sticky “Shop now” bar on mobile.
-                  </div>
-                </div>
-              </div>
 
-              <div className="mt-5 text-xs text-[var(--muted)]">
-                Current featured minimum price: <b>{money(featuredMinPrice)}</b>
+                <div className="mt-5 text-xs text-[var(--muted)]">
+                  Email updated to: <b>{site.email}</b>
+                </div>
               </div>
             </div>
           </div>

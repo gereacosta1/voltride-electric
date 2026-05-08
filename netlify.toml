@@ -1,9 +1,10 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [functions]
-  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 [build.environment]
   NODE_VERSION = "20"
@@ -14,7 +15,18 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
-# SPA fallback (React/Vite)
+# Affirm return routes
+[[redirects]]
+  from = "/checkout/affirm/confirm"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/checkout/affirm/cancel"
+  to = "/index.html"
+  status = 200
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"

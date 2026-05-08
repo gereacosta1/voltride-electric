@@ -36,9 +36,7 @@ export default function Navbar() {
             type="button"
             aria-label="Go to top"
           >
-            <div
-              className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/20"
-            >
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/20">
               <div
                 className="absolute inset-0"
                 style={{
@@ -49,7 +47,7 @@ export default function Navbar() {
               />
 
               <img
-                src={`${site.logo}?v=1`}
+                src={`${site.logo}?v=2`}
                 alt={site.name}
                 className="relative h-9 w-9 object-contain"
                 loading="eager"
@@ -105,10 +103,20 @@ export default function Navbar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            <a
+              className="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-white/10 sm:inline-flex"
+              href={site.socials.whatsapp}
+              target="_blank"
+              rel="noreferrer"
+            >
+              WhatsApp
+            </a>
+
             <button
               className="btn btn-primary rounded-xl px-5 py-2.5 font-extrabold"
               style={{
-                background: "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
+                background:
+                  "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
                 color: "#0B0F14",
               }}
               onClick={() => scrollToId("catalog")}
@@ -132,7 +140,8 @@ export default function Navbar() {
                 <span
                   className="absolute -right-2 -top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-black"
                   style={{
-                    background: "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
+                    background:
+                      "linear-gradient(90deg, rgba(217,70,239,1), rgba(163,230,53,1))",
                     color: "#0B0F14",
                     border: "1px solid rgba(255,255,255,.25)",
                   }}

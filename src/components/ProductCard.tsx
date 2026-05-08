@@ -1,5 +1,5 @@
-//src/components/ProductCard.tsx
-import React from "react";
+// src/components/ProductCard.tsx
+import React, { useMemo, useState } from "react";
 import { Product } from "../data/products";
 import { useCart } from "../context/CartContext";
 
@@ -21,6 +21,12 @@ function formatUsd(value: number) {
 
 export default function ProductCard({ p }: { p: Product }) {
   const { addItem } = useCart();
+  const [activeImage, setActiveImage] = useState(p.image);
+
+  const images = useMemo(() => {
+    const list = [p.image, ...(p.gallery || [])].filter(Boolean);
+    return Array.from(new Set(list));
+  }, [p.image, p.gallery]);
 
   const categoryLabel =
     p.category === "scooters"
@@ -30,11 +36,11 @@ export default function ProductCard({ p }: { p: Product }) {
       : "Audio";
 
   return (
-    <div className="glass card overflow-hidden">
+    <div className="glass card overflow-hidden group">
       <div className="relative">
         <img
-          className="h-56 w-full object-cover"
-          src={safeSrc(p.image)}
+          className="h-56 w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+          src={safeSrc(activeImage)}
           alt={safeText(p.name, "Product image")}
           loading="lazy"
           onError={(e) => {
@@ -43,6 +49,8 @@ export default function ProductCard({ p }: { p: Product }) {
             target.src = "/fallback.png";
           }}
         />
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/20 pointer-events-none" />
 
         <div className="absolute left-4 top-4 flex gap-2">
           <span className="badge">{categoryLabel}</span>
@@ -55,6 +63,30 @@ export default function ProductCard({ p }: { p: Product }) {
             </span>
           ) : null}
         </div>
+
+        {images.length > 1 ? (
+          <div className="absolute bottom-3 left-3 right-3 flex gap-2 overflow-x-auto">
+            {images.slice(0, 5).map((img) => (
+              <button
+                key={img}
+                type="button"
+                onClick={() => setActiveImage(img)}
+                className={`h-12 w-12 shrink-0 overflow-hidden rounded-xl border bg-black/40 p-0.5 transition ${
+                  activeImage === img
+                    ? "border-white/70"
+                    : "border-white/15 hover:border-white/40"
+                }`}
+              >
+                <img
+                  src={safeSrc(img)}
+                  alt=""
+                  className="h-full w-full rounded-lg object-cover"
+                  loading="lazy"
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="p-5">
@@ -64,7 +96,8 @@ export default function ProductCard({ p }: { p: Product }) {
               {safeText(p.name, "Unnamed product")}
             </div>
             <div className="truncate text-sm text-[var(--muted)]">
-              {safeText(p.brand, "Brand")} • {safeText(p.model, "Model")} • {safeText(p.year, "-")}
+              {safeText(p.brand, "Brand")} • {safeText(p.model, "Model")} •{" "}
+              {safeText(p.year, "-")}
             </div>
           </div>
 
@@ -82,7 +115,20 @@ export default function ProductCard({ p }: { p: Product }) {
           </p>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-between gap-3">
+        {p.features?.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {p.features.slice(0, 3).map((feature) => (
+              <span
+                key={feature}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[var(--muted)]"
+              >
+                {feature}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex items-center justify-between gap-3">
           <button
             className="btn btn-primary w-full"
             onClick={() =>

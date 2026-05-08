@@ -10,6 +10,13 @@ let loading: Promise<void> | null = null;
 let loadedScriptSrc: string | null = null;
 let loadedPublicKey: string | null = null;
 
+function normalizeEnv(env: string): "prod" | "sandbox" {
+  const value = String(env || "").trim().toLowerCase();
+
+  if (value === "sandbox" || value === "test") return "sandbox";
+  return "prod";
+}
+
 function getAffirmScriptUrl(env: "prod" | "sandbox") {
   return env === "sandbox"
     ? "https://cdn1-sandbox.affirm.com/js/v2/affirm.js"
@@ -80,18 +87,20 @@ function resetAffirmGlobals() {
 
 export function loadAffirm(
   publicKey: string,
-  env: "prod" | "sandbox" = "prod"
+  env: "prod" | "sandbox" | "production" | string = "prod"
 ): Promise<void> {
   if (!canUseDom()) {
     return Promise.reject(new Error("No DOM available"));
   }
 
   const trimmedKey = String(publicKey || "").trim();
+
   if (!trimmedKey) {
     return Promise.reject(new Error("Missing Affirm public key"));
   }
 
-  const scriptSrc = getAffirmScriptUrl(env);
+  const normalizedEnv = normalizeEnv(env);
+  const scriptSrc = getAffirmScriptUrl(normalizedEnv);
 
   if (window.affirm?.checkout && sameConfig(scriptSrc, trimmedKey)) {
     return Promise.resolve();

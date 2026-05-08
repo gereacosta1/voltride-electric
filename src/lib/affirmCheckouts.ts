@@ -24,9 +24,9 @@ export type Customer = {
     line1: string;
     line2?: string;
     city: string;
-    state: string; // 2 letters
-    zip: string; // 5 digits or ZIP+4
-    country?: string; // unused for now (US only)
+    state: string;
+    zip: string;
+    country?: string;
   };
 };
 
@@ -81,12 +81,14 @@ type AffirmCheckoutPayload = {
   };
 };
 
-const toCents = (usd = 0): number => Math.max(0, Math.round((Number(usd) || 0) * 100));
+const toCents = (usd = 0): number =>
+  Math.max(0, Math.round((Number(usd) || 0) * 100));
 
 function safeBase(origin?: string): string {
   const raw =
     String(origin || "").trim() ||
     (typeof window !== "undefined" ? window.location.origin : "");
+
   return raw.replace(/\/+$/, "");
 }
 
@@ -122,7 +124,6 @@ function normalizePhone(phone?: string): string | undefined {
   const digits = p.replace(/\D/g, "");
   if (!digits) return undefined;
 
-  // Keep it simple: send digits only, optionally with leading US country code if already present.
   if (digits.length === 10) return digits;
   if (digits.length === 11 && digits.startsWith("1")) return digits;
 
@@ -134,9 +135,16 @@ function nonEmptyOrFallback(value: string, fallback: string): string {
   return v.length ? v : fallback;
 }
 
-function looksLikeImageUrl(u: string): boolean {
-  const s = String(u || "").toLowerCase();
-  return /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/.test(s);
+function looksLikeImageUrl(url: string): boolean {
+  const clean = String(url || "").toLowerCase().split("?")[0];
+
+  return (
+    clean.endsWith(".png") ||
+    clean.endsWith(".jpg") ||
+    clean.endsWith(".jpeg") ||
+    clean.endsWith(".webp") ||
+    clean.endsWith(".gif")
+  );
 }
 
 function buildName(customer: Customer): AffirmName {
@@ -147,11 +155,11 @@ function buildName(customer: Customer): AffirmName {
 }
 
 function buildAddress(customer: Customer): AffirmAddress {
-  const line1 = String(customer.address?.line1 || "").trim();
+  const line1 = nonEmptyOrFallback(customer.address?.line1 || "", "11510 Biscayne Blvd");
   const line2 = String(customer.address?.line2 || "").trim();
-  const city = normalizeCity(customer.address?.city || "");
-  const state = normalizeState(customer.address?.state || "");
-  const zipcode = normalizeZip(customer.address?.zip || "");
+  const city = nonEmptyOrFallback(normalizeCity(customer.address?.city || ""), "Miami");
+  const state = nonEmptyOrFallback(normalizeState(customer.address?.state || ""), "FL");
+  const zipcode = nonEmptyOrFallback(normalizeZip(customer.address?.zip || ""), "33181");
 
   return {
     line1,
@@ -183,7 +191,7 @@ export function buildAffirmCheckout(
 
       const item: AffirmItem = {
         display_name,
-        sku: nonEmptyOrFallback(String(p.id), `ITEM-${idx + 1}`),
+        sku: nonEmptyOrFallback(String(p.id || ""), `ITEM-${idx + 1}`),
         unit_price: unitPrice,
         qty,
         item_url: toAbsoluteUrl(base, p.url, "/"),
@@ -207,22 +215,24 @@ export function buildAffirmCheckout(
 
   const name = buildName(customer);
   const address = buildAddress(customer);
-  const email = String(customer.email || "").trim();
+  const email = nonEmptyOrFallback(customer.email || "", "Voltrideelectric1@gmail.com");
   const phone = normalizePhone(customer.phone);
 
-  const payload: AffirmCheckoutPayload = {
+  return {
     merchant: {
       user_confirmation_url: toAbsoluteUrl(base, "/checkout/affirm/confirm", "/"),
       user_cancel_url: toAbsoluteUrl(base, "/checkout/affirm/cancel", "/"),
       user_confirmation_url_action: "GET",
-      name: "VOLTRIDE ELECTRIC LLC",
+      name: "Voltride Electric LLC",
     },
     items: mapped,
     currency: "USD",
     shipping_amount: shippingC,
     tax_amount: taxC,
     total: totalC,
-    metadata: { mode: "modal" },
+    metadata: {
+      mode: "modal",
+    },
     billing: {
       name,
       address,
@@ -235,6 +245,4 @@ export function buildAffirmCheckout(
       ...(phone ? { phone_number: phone } : {}),
     },
   };
-
-  return payload;
 }

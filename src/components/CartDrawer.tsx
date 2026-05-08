@@ -1,6 +1,7 @@
 // src/components/CartDrawer.tsx
 import React, { useEffect } from "react";
 import { useCart } from "../context/CartContext";
+import { site } from "../config/site";
 import PayWithAffirm from "./PayWithAffirm";
 import PayWithCard from "./PayWithCard";
 import { IconMinus, IconPlus, IconX } from "./icons";
@@ -76,8 +77,21 @@ export default function CartDrawer() {
               <div className="glass card p-5">
                 <div className="h-serif text-2xl">Your cart is empty</div>
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  Add something from the catalog and come back here to checkout.
+                  Add a scooter, e-bike or accessory from the catalog and come back here to checkout.
                 </p>
+
+                <button
+                  className="btn btn-primary mt-4 w-full"
+                  onClick={() => {
+                    close();
+                    window.setTimeout(() => {
+                      document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" });
+                    }, 50);
+                  }}
+                  type="button"
+                >
+                  Browse catalog
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -190,21 +204,12 @@ export default function CartDrawer() {
                 Clear
               </button>
 
-              <button
+              <a
                 className="btn"
-                onClick={() => {
-                  close();
-                  if (typeof window !== "undefined" && typeof document !== "undefined") {
-                    window.setTimeout(() => {
-                      const el = document.getElementById("contact");
-                      el?.scrollIntoView({ behavior: "smooth" });
-                    }, 50);
-                  }
-                }}
-                type="button"
+                href={`mailto:${site.email}?subject=Question about my Voltride order`}
               >
                 Need help?
-              </button>
+              </a>
             </div>
 
             <div className="mt-3 space-y-2">
@@ -212,8 +217,15 @@ export default function CartDrawer() {
               <PayWithCard />
             </div>
 
-            <div className="mt-3 text-xs text-[var(--muted)]">
-              Checkout is secure. Taxes/shipping can be calculated at confirmation if needed.
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs leading-relaxed text-[var(--muted)]">
+              Checkout is secure. For pickup, availability or product questions, contact us at{" "}
+              <a
+                className="font-bold text-white underline decoration-white/20 hover:decoration-white/60"
+                href={`mailto:${site.email}`}
+              >
+                {site.email}
+              </a>
+              .
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-//src/data/products.ts
+// src/data/products.ts
 export type ProductCategory = "scooters" | "ebikes" | "audio";
 
 export type Product = {
@@ -20,6 +20,12 @@ export type Product = {
   gallery?: string[];
 };
 
+const storeGallery = [
+  "/IMG/store-front.jpeg",
+  "/IMG/store-inside.jpeg",
+  "/IMG/tienda-fisica-voltride.jpeg",
+];
+
 export const products: Product[] = [
   {
     id: 5,
@@ -36,6 +42,12 @@ export const products: Product[] = [
     description:
       "Scooter eléctrico urbano, perfecto para moverte por Miami con cero emisiones y bajo mantenimiento.",
     features: ["Motor eléctrico", "Ligero y ágil", "Batería de alta capacidad"],
+    gallery: [
+      "/IMG/Scooter-electrico(1).jpeg",
+      "/IMG/Scooter-electrico (2).jpeg",
+      "/IMG/Scooter-electrico (3).jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 8,
@@ -52,6 +64,12 @@ export const products: Product[] = [
     description:
       "Scooter eléctrico robusto con gran autonomía, ideal para uso diario y recorridos más largos.",
     features: ["Motor eléctrico", "Suspensión confortable", "Autonomía extendida"],
+    gallery: [
+      "/IMG/ELECTRIC SCOOTER.jpeg",
+      "/IMG/scooter-azul.jpeg",
+      "/IMG/scooter-azul-oscuro.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 12,
@@ -67,6 +85,12 @@ export const products: Product[] = [
     description:
       "Modelo compacto y ligero, pensado para la ciudad. Fácil de manejar y de guardar.",
     features: ["Motor eléctrico", "Diseño compacto", "Batería removible"],
+    gallery: [
+      "/IMG/electricBike3.jpeg",
+      "/IMG/electricBike.jpeg",
+      "/IMG/electricBike2.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 18,
@@ -83,6 +107,12 @@ export const products: Product[] = [
     description:
       "Scooter eléctrico con diseño moderno y cómodo, ideal para el día a día.",
     features: ["Motor eléctrico", "Ligero y ágil", "Batería de alta capacidad"],
+    gallery: [
+      "/IMG/scooter-azul.jpeg",
+      "/IMG/scooter-azul-oscuro.jpeg",
+      "/IMG/scooter-rojo.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 20,
@@ -98,6 +128,11 @@ export const products: Product[] = [
     description:
       "Opción accesible para comenzar en la movilidad eléctrica, perfecta para trayectos cortos.",
     features: ["Motor eléctrico", "Plegable", "Freno regenerativo"],
+    gallery: [
+      "/IMG/scooter-electrico-hiboy.jpg",
+      "/IMG/scooter-cebas.webp",
+      ...storeGallery,
+    ],
   },
 
   {
@@ -114,6 +149,12 @@ export const products: Product[] = [
     featured: true,
     description: "E-bike estilo urbano, ideal para movilidad diaria.",
     features: ["Motor eléctrico", "Batería de alta capacidad", "Diseño compacto"],
+    gallery: [
+      "/IMG/e-bike-xp4-2500.jpeg",
+      "/IMG/bici-electric-negra.jpeg",
+      "/IMG/e-bike-rambo-2850.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 26,
@@ -128,6 +169,12 @@ export const products: Product[] = [
     engine: "Electric",
     description: "E-bike con ruedas anchas y estructura robusta.",
     features: ["Motor eléctrico", "Suspensión confortable", "Autonomía extendida"],
+    gallery: [
+      "/IMG/e-bike-rambo-2850.jpeg",
+      "/IMG/e-bike-xp4-2500.jpeg",
+      "/IMG/e-bike-super73-3500.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 27,
@@ -147,6 +194,12 @@ export const products: Product[] = [
       "Batería de alta capacidad",
       "Diseño robusto",
     ],
+    gallery: [
+      "/IMG/e-bike-super73-3500.jpeg",
+      "/IMG/e-bike-rambo-2850.jpeg",
+      "/IMG/bici-electric-negra.jpeg",
+      ...storeGallery,
+    ],
   },
 
   {
@@ -163,6 +216,12 @@ export const products: Product[] = [
     description:
       "Parlante JBL Charge 4 con batería de larga duración y sonido potente para interior y exterior.",
     features: ["Bluetooth", "Resistente al agua", "Batería recargable"],
+    gallery: [
+      "/IMG/jbl-charge-4.jpeg",
+      "/IMG/jbl-go-4.jpeg",
+      "/IMG/jbl-flip-6.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 22,
@@ -177,6 +236,12 @@ export const products: Product[] = [
     description:
       "Parlante ultra compacto para llevar en el bolsillo. Ideal para uso diario.",
     features: ["Bluetooth", "Tamaño compacto", "Hasta 8h de batería"],
+    gallery: [
+      "/IMG/jbl-go-4.jpeg",
+      "/IMG/jbl-flip-6.jpeg",
+      "/IMG/jbl-charge-4.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 23,
@@ -192,6 +257,12 @@ export const products: Product[] = [
     description:
       "JBL Party Box con luces LED y sonido de alta potencia, perfecto para eventos y fiestas.",
     features: ["Alta potencia", "Luces LED", "Entradas para micrófono"],
+    gallery: [
+      "/IMG/jbl-party-box.jpeg",
+      "/IMG/jbl-charge-4.jpeg",
+      "/IMG/jbl-flip-6.jpeg",
+      ...storeGallery,
+    ],
   },
   {
     id: 24,
@@ -206,5 +277,11 @@ export const products: Product[] = [
     description:
       "Parlante JBL Flip 6 resistente al agua, con sonido equilibrado y fácil de transportar.",
     features: ["Bluetooth", "Resistente al agua", "Diseño portátil"],
+    gallery: [
+      "/IMG/jbl-flip-6.jpeg",
+      "/IMG/jbl-go-4.jpeg",
+      "/IMG/jbl-charge-4.jpeg",
+      ...storeGallery,
+    ],
   },
 ];

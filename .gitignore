@@ -26,3 +26,5 @@ Thumbs.db
 # misc
 *.local
 _share/
+# Local Netlify folder
+.netlify

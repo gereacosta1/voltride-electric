@@ -1,9 +1,10 @@
 // src/components/CartDrawer.tsx
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useCart } from "../context/CartContext";
 import { site } from "../config/site";
 import PayWithAffirm from "./PayWithAffirm";
 import PayWithCard from "./PayWithCard";
+import PayWithAcima from "./PayWithAcima";
 import { IconMinus, IconPlus, IconX } from "./icons";
 
 function safeSrc(src?: string) {
@@ -42,7 +43,12 @@ export default function CartDrawer() {
   if (!isOpen) return null;
 
   const safeItems = Array.isArray(items) ? items : [];
-  const count = safeItems.reduce((acc, it) => acc + Math.max(0, Number(it?.qty) || 0), 0);
+  const count = safeItems.reduce(
+    (acc, it) => acc + Math.max(0, Number(it?.qty) || 0),
+    0
+  );
+  const hasItems = safeItems.length > 0;
+  const safeTotal = Math.max(0, Number(totalUSD) || 0);
 
   return (
     <div className="fixed inset-0 z-[9990]" aria-modal="true" role="dialog">
@@ -73,11 +79,12 @@ export default function CartDrawer() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {safeItems.length === 0 ? (
+            {!hasItems ? (
               <div className="glass card p-5">
                 <div className="h-serif text-2xl">Your cart is empty</div>
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  Add a scooter, e-bike or accessory from the catalog and come back here to checkout.
+                  Add a scooter, e-bike or accessory from the catalog and come back here
+                  to checkout.
                 </p>
 
                 <button
@@ -85,7 +92,9 @@ export default function CartDrawer() {
                   onClick={() => {
                     close();
                     window.setTimeout(() => {
-                      document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" });
+                      document
+                        .getElementById("catalog")
+                        ?.scrollIntoView({ behavior: "smooth" });
                     }, 50);
                   }}
                   type="button"
@@ -191,16 +200,11 @@ export default function CartDrawer() {
           >
             <div className="flex items-center justify-between">
               <div className="text-sm text-[var(--muted)]">Total</div>
-              <div className="text-2xl font-black">{money(Number(totalUSD) || 0)}</div>
+              <div className="text-2xl font-black">{money(safeTotal)}</div>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                className="btn"
-                onClick={clear}
-                type="button"
-                disabled={safeItems.length === 0}
-              >
+              <button className="btn" onClick={clear} type="button" disabled={!hasItems}>
                 Clear
               </button>
 
@@ -213,6 +217,7 @@ export default function CartDrawer() {
             </div>
 
             <div className="mt-3 space-y-2">
+              <PayWithAcima />
               <PayWithAffirm />
               <PayWithCard />
             </div>

@@ -1,89 +1,114 @@
-import React from "react";
 import { site } from "../config/site";
 
 export default function Footer() {
   return (
-    <footer className="mt-10">
+    <footer className="mt-20">
       <div className="mx-auto max-w-6xl px-4 pb-10">
-        <div className="glass card p-6 md:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#0d1320]/75 shadow-[0_20px_70px_rgba(0,0,0,.35)] backdrop-blur-2xl">
+          <div className="grid gap-10 p-8 md:grid-cols-3 md:p-10">
             <div>
-              <div className="flex items-center gap-3">
-                <img
-                  src={site.logo}
-                  alt={site.name}
-                  className="h-12 w-12 rounded-xl object-contain bg-black/20 border border-white/10 p-1"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
+              <div className="flex items-center gap-4">
+                <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/25">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(217,70,239,.35),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(163,230,53,.28),transparent_60%)]" />
+
+                  <img
+                    src={site.logo}
+                    alt={site.name}
+                    className="relative h-10 w-10 object-contain"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                </div>
+
                 <div>
-                  <div className="font-extrabold">{site.name}</div>
-                  <div className="text-sm text-[var(--muted)]">
+                  <div className="text-lg font-black">{site.name}</div>
+                  <div className="text-sm text-white/45">
                     {site.brandTagline}
                   </div>
                 </div>
               </div>
 
-              <p className="mt-4 text-sm text-[var(--muted)] leading-relaxed">
-                Premium electric mobility with fast checkout. Scooters, e-bikes
-                and accessories designed for city rides in Miami.
+              <p className="mt-5 max-w-sm leading-7 text-white/55">
+                Premium electric scooters, e-bikes and accessories for everyday
+                mobility. Shop online or visit our Miami showroom for pickup and
+                product assistance.
               </p>
             </div>
 
-            <div className="text-sm">
-              <div className="font-black mb-3">Contact</div>
-              <div className="text-[var(--muted)] leading-relaxed">
+            <div>
+              <h3 className="mb-5 text-sm font-black uppercase tracking-wider text-white">
+                Contact
+              </h3>
+
+              <div className="space-y-3 text-sm text-white/60">
                 <div>{site.address}</div>
 
-                <div className="mt-2">
-                  <a
-                    className="underline decoration-white/20 hover:decoration-white/60"
-                    href={`tel:${site.phoneE164}`}
-                  >
-                    {site.phonePretty}
-                  </a>
-                </div>
-
-                <div className="mt-1">
-                  <a
-                    className="underline decoration-white/20 hover:decoration-white/60"
-                    href={`mailto:${site.email}`}
-                  >
-                    {site.email}
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-sm">
-              <div className="font-black mb-3">Pickup checklist</div>
-              <div className="text-[var(--muted)] leading-relaxed">
-                <div>Bring ID recommended</div>
-                <div>Have your order/product name ready</div>
-                <div>Ask for compatibility, charger, specs and pickup help</div>
-              </div>
-
-              <div className="mt-4 text-sm">
                 <a
-                  href={site.socials.whatsapp}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-xl border border-white/10 bg-white/10 px-4 py-2 font-bold text-white hover:bg-white/15 transition"
+                  href={`tel:${site.phoneE164}`}
+                  className="block transition hover:text-white"
                 >
-                  Contact on WhatsApp
+                  {site.phonePretty}
+                </a>
+
+                <a
+                  href={`mailto:${site.email}`}
+                  className="block transition hover:text-white"
+                >
+                  {site.email}
                 </a>
               </div>
 
-              <div className="mt-4 text-xs text-[var(--muted)]">
-                © {new Date().getFullYear()} {site.name}. All rights reserved.
+              <a
+                href={site.socials.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-6 inline-flex rounded-2xl bg-gradient-to-r from-fuchsia-500 to-lime-300 px-5 py-3 text-sm font-black text-black transition hover:brightness-110"
+              >
+                Chat on WhatsApp
+              </a>
+            </div>
+
+            <div>
+              <h3 className="mb-5 text-sm font-black uppercase tracking-wider text-white">
+                Store information
+              </h3>
+
+              <div className="space-y-3 text-sm text-white/60">
+                <div>✔ Local pickup available</div>
+                <div>✔ Financing options</div>
+                <div>✔ Card payments accepted</div>
+                <div>✔ Product support before purchase</div>
+                <div>✔ Miami showroom</div>
+              </div>
+
+              <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                <div className="text-xs uppercase tracking-wider text-white/40">
+                  Working hours
+                </div>
+
+                <div className="mt-2 text-lg font-black">
+                  Contact us to confirm availability
+                </div>
+
+                <div className="mt-1 text-sm text-white/50">
+                  Inventory changes frequently.
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="mt-4 text-center text-xs text-[var(--muted)]">
-          Built with a clean, modern gradient style — Voltride Edition.
+          <div className="border-t border-white/10 bg-black/15 px-8 py-5">
+            <div className="flex flex-col items-center justify-between gap-3 text-sm text-white/45 md:flex-row">
+              <div>
+                © {new Date().getFullYear()} {site.name}. All rights reserved.
+              </div>
+
+              <div className="text-center md:text-right">
+                Built for a fast, modern shopping experience.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

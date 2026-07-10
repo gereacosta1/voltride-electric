@@ -27,8 +27,10 @@ type Props = {
 const MIN_TOTAL_CENTS = 5000;
 const toCents = (usd = 0) => Math.max(0, Math.round((Number(usd) || 0) * 100));
 
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
-const isUSState = (v: string) => /^[A-Z]{2}$/.test(String(v || "").trim().toUpperCase());
+const isEmail = (v: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
+const isUSState = (v: string) =>
+  /^[A-Z]{2}$/.test(String(v || "").trim().toUpperCase());
 const isUSZip = (v: string) => /^\d{5}(-\d{4})?$/.test(String(v || "").trim());
 
 const DEBUG_STORAGE_KEY = "voltride_affirm_debug_v1";
@@ -78,7 +80,9 @@ function safeJsonStringify(v: any) {
 }
 
 function makeDebugId() {
-  return `dbg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `dbg_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 function canUseStorage() {
@@ -94,7 +98,10 @@ function getOrInitDebugState(): DebugState {
     };
   }
 
-  const existing = safeJsonParse<DebugState>(window.localStorage.getItem(DEBUG_STORAGE_KEY));
+  const existing = safeJsonParse<DebugState>(
+    window.localStorage.getItem(DEBUG_STORAGE_KEY)
+  );
+
   if (existing?.debugId && Array.isArray(existing.events)) return existing;
 
   const init: DebugState = {
@@ -122,13 +129,16 @@ function normalizeAffirmEnv(value: string): "prod" | "sandbox" {
 function sanitizeEmail(email: string) {
   const e = String(email || "").trim();
   const at = e.indexOf("@");
+
   if (at === -1) return "";
+
   const domain = e.slice(at + 1);
   return `***@${domain}`;
 }
 
 function sanitizeToken(token: string) {
   const t = String(token || "").trim();
+
   return {
     token_len: t.length,
     token_prefix: t ? `${t.slice(0, 8)}…` : "",
@@ -218,20 +228,22 @@ function Toast({
 }) {
   if (!show) return null;
 
+  const style =
+    type === "success"
+      ? "border-lime-300/30 bg-lime-300/15 text-lime-100"
+      : type === "error"
+      ? "border-red-400/30 bg-red-400/15 text-red-100"
+      : "border-white/15 bg-[#0d1422]/95 text-white";
+
   return (
-    <div
+    <button
+      type="button"
       role="status"
       onClick={onClose}
-      className={`fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 rounded-xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
-        type === "success"
-          ? "border-green-400 bg-green-600/95 text-white"
-          : type === "error"
-          ? "border-red-400 bg-red-600/95 text-white"
-          : "border-white/20 bg-black/90 text-white"
-      }`}
+      className={`fixed bottom-6 left-1/2 z-[9999] max-w-[92vw] -translate-x-1/2 rounded-2xl border px-4 py-3 text-sm font-bold shadow-2xl backdrop-blur-xl transition ${style}`}
     >
       {message}
-    </div>
+    </button>
   );
 }
 
@@ -257,55 +269,64 @@ function NiceModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
         onClick={disableClose ? undefined : onClose}
+        aria-label="Close modal overlay"
       />
 
-      <div className="relative w-[95%] max-w-md rounded-2xl border border-white/10 bg-[#111827] p-6 text-white shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <h3 className="text-xl font-black text-white">{title}</h3>
+      <div className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1422] text-white shadow-[0_30px_100px_rgba(0,0,0,.55)]">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-sky-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl" />
 
-          <button
-            onClick={onClose}
-            className={`text-white/60 hover:text-white ${
-              disableClose ? "pointer-events-none opacity-40" : ""
-            }`}
-            aria-label="Close"
-            title={disableClose ? "Complete the form to continue" : "Close"}
-            type="button"
-          >
-            ✕
-          </button>
-        </div>
+        <div className="relative border-b border-white/10 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <h3 className="text-xl font-black text-white">{title}</h3>
 
-        <div className="mb-6 whitespace-pre-line text-sm leading-relaxed text-white/75">
-          {children}
-        </div>
-
-        <div className="flex items-center justify-end gap-3">
-          {secondaryLabel && (
             <button
-              type="button"
               onClick={onClose}
-              className={`rounded-xl border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10 ${
+              className={`rounded-xl p-1 text-white/50 transition hover:bg-white/10 hover:text-white ${
                 disableClose ? "pointer-events-none opacity-40" : ""
               }`}
-            >
-              {secondaryLabel}
-            </button>
-          )}
-
-          {primaryLabel && (
-            <button
+              aria-label="Close"
+              title={disableClose ? "Complete the form to continue" : "Close"}
               type="button"
-              onClick={onPrimary}
-              className="rounded-xl bg-white px-4 py-2 font-bold text-black hover:bg-white/90"
             >
-              {primaryLabel}
+              ✕
             </button>
-          )}
+          </div>
+        </div>
+
+        <div className="relative px-6 py-5">
+          <div className="whitespace-pre-line text-sm leading-relaxed text-white/65">
+            {children}
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-3">
+            {secondaryLabel && (
+              <button
+                type="button"
+                onClick={onClose}
+                className={`rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/75 transition hover:bg-white/[0.09] hover:text-white ${
+                  disableClose ? "pointer-events-none opacity-40" : ""
+                }`}
+              >
+                {secondaryLabel}
+              </button>
+            )}
+
+            {primaryLabel && (
+              <button
+                type="button"
+                onClick={onPrimary}
+                className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black transition hover:bg-white/90 active:scale-[.98]"
+              >
+                {primaryLabel}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -322,13 +343,14 @@ function BuyerInfoForm({
   const set = (k: keyof BuyerForm, v: string) => onChange({ ...value, [k]: v });
 
   const inputClass =
-    "w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/20";
-  const labelClass = "text-xs font-semibold text-white/70";
+    "w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-sky-300/40 focus:ring-2 focus:ring-sky-300/15";
+
+  const labelClass = "mb-1 text-xs font-semibold text-white/60";
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-white/70">
-        To continue with Affirm, please enter the buyer information.
+      <p className="text-sm leading-relaxed text-white/60">
+        Enter the buyer information to continue with Affirm financing.
       </p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -339,6 +361,7 @@ function BuyerInfoForm({
             value={value.firstName}
             onChange={(e) => set("firstName", e.target.value)}
             autoComplete="given-name"
+            placeholder="John"
           />
         </div>
 
@@ -349,6 +372,7 @@ function BuyerInfoForm({
             value={value.lastName}
             onChange={(e) => set("lastName", e.target.value)}
             autoComplete="family-name"
+            placeholder="Smith"
           />
         </div>
       </div>
@@ -360,6 +384,7 @@ function BuyerInfoForm({
           value={value.email}
           onChange={(e) => set("email", e.target.value)}
           autoComplete="email"
+          placeholder="customer@email.com"
         />
       </div>
 
@@ -370,6 +395,7 @@ function BuyerInfoForm({
           value={value.line1}
           onChange={(e) => set("line1", e.target.value)}
           autoComplete="address-line1"
+          placeholder="11510 Biscayne Blvd"
         />
       </div>
 
@@ -381,6 +407,7 @@ function BuyerInfoForm({
             value={value.city}
             onChange={(e) => set("city", e.target.value)}
             autoComplete="address-level2"
+            placeholder="Miami"
           />
         </div>
 
@@ -411,7 +438,7 @@ function BuyerInfoForm({
 
         <div>
           <div className={labelClass}>Country</div>
-          <input className={inputClass} value="US" disabled />
+          <input className={`${inputClass} opacity-70`} value="US" disabled />
         </div>
       </div>
     </div>
@@ -425,6 +452,7 @@ export default function AffirmButton({
   taxUSD = 0,
 }: Props) {
   const PUBLIC_KEY = String(import.meta.env.VITE_AFFIRM_PUBLIC_KEY || "").trim();
+
   const ENV = normalizeAffirmEnv(
     String(import.meta.env.VITE_AFFIRM_ENV || import.meta.env.AFFIRM_ENV || "prod")
   );
@@ -432,6 +460,8 @@ export default function AffirmButton({
   const CHECKOUT_ENDPOINT = "/api/affirm-checkout";
   const AUTHORIZE_ENDPOINT = "/api/affirm-authorize";
   const TRACE_ENDPOINT = "/api/trace";
+
+  const showDebugPanel = Boolean(import.meta.env.DEV);
 
   const [ready, setReady] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -476,12 +506,14 @@ export default function AffirmButton({
   const addDebugEvent = (step: string, data?: Record<string, any>) => {
     try {
       const st = getOrInitDebugState();
+
       const next: DebugState = {
         ...st,
         events: [...st.events, { ts: nowIso(), step, data: data || undefined }].slice(
           -DEBUG_MAX_EVENTS
         ),
       };
+
       persistDebugState(next);
       setDebugStateUI(next);
     } catch {
@@ -553,10 +585,12 @@ export default function AffirmButton({
   const subtotalC = mapped.reduce((acc, it) => acc + toCents(it.price) * it.qty, 0);
   const shippingC = toCents(shippingUSD);
   const taxC = toCents(taxUSD);
+
   const totalC =
     typeof totalUSD === "number" ? toCents(totalUSD) : subtotalC + shippingC + taxC;
 
   const affirmEnabled = Boolean(PUBLIC_KEY);
+
   const canPay =
     affirmEnabled && ready && mapped.length > 0 && totalC >= MIN_TOTAL_CENTS;
 
@@ -897,11 +931,11 @@ export default function AffirmButton({
   }
 
   const label = !affirmEnabled
-    ? "Affirm disabled"
+    ? "Affirm unavailable"
     : !ready
-    ? "Loading Affirm…"
+    ? "Loading Affirm..."
     : opening
-    ? "Opening…"
+    ? "Opening Affirm..."
     : "Pay with Affirm";
 
   const copyDebug = async () => {
@@ -923,6 +957,7 @@ export default function AffirmButton({
       if (canUseStorage()) {
         window.localStorage.removeItem(DEBUG_STORAGE_KEY);
       }
+
       const st = getOrInitDebugState();
       setDebugStateUI(st);
       showToast("success", "Debug cleared");
@@ -937,7 +972,7 @@ export default function AffirmButton({
         type="button"
         onClick={startAffirmFlow}
         disabled={!affirmEnabled || opening || !canPay}
-        className="w-full rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 px-4 py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-2xl border border-sky-300/20 bg-gradient-to-r from-sky-500 to-violet-500 px-4 py-3 text-sm font-black text-white shadow-[0_12px_35px_rgba(56,189,248,.14)] transition hover:brightness-110 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
         title={
           !affirmEnabled
             ? "Missing VITE_AFFIRM_PUBLIC_KEY"
@@ -948,11 +983,18 @@ export default function AffirmButton({
             : "Pay with Affirm"
         }
       >
-        {label}
+        <span className="absolute inset-0 opacity-0 transition group-hover:opacity-100">
+          <span className="absolute -left-16 top-0 h-full w-24 rotate-12 bg-white/20 blur-xl" />
+        </span>
+
+        <span className="relative inline-flex items-center justify-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-white/80 shadow-[0_0_16px_rgba(255,255,255,.55)]" />
+          {label}
+        </span>
       </button>
 
-      {debugState?.debugId && (
-        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/45">
+      {showDebugPanel && debugState?.debugId && (
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/35">
           <div className="truncate">
             Debug ID: <span className="font-mono">{debugState.debugId}</span>
           </div>
@@ -961,7 +1003,7 @@ export default function AffirmButton({
             <button
               type="button"
               onClick={copyDebug}
-              className="underline hover:text-white/80"
+              className="underline transition hover:text-white/75"
               title="Copy debug JSON"
             >
               Copy
@@ -970,7 +1012,7 @@ export default function AffirmButton({
             <button
               type="button"
               onClick={clearDebug}
-              className="underline hover:text-white/80"
+              className="underline transition hover:text-white/75"
               title="Clear debug"
             >
               Clear

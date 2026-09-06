@@ -1,26 +1,55 @@
 // src/App.tsx
+
 import { useMemo, useState } from "react";
-import { CartProvider } from "./context/CartContext";
+
 import CartDrawer from "./components/CartDrawer";
-import { I18nProvider } from "./i18n/I18nProvider";
-import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import ProductCard from "./components/ProductCard";
-import { products, ProductCategory } from "./data/products";
-import { site } from "./config/site";
 import { IconBolt } from "./components/icons";
+import Navbar from "./components/Navbar";
+import ProductCard from "./components/ProductCard";
+import { site } from "./config/site";
+import { CartProvider } from "./context/CartContext";
+import {
+  products,
+  type ProductCategory,
+} from "./data/products";
+import { I18nProvider } from "./i18n/I18nProvider";
 
 type CatalogTab = "all" | ProductCategory;
 
-function money(n: number) {
+const STORE_IMAGES = [
+  "/IMG/store-front.jpeg",
+  "/IMG/store-inside.jpeg",
+  "/IMG/tienda-fisica-voltride.jpeg",
+] as const;
+
+const CATEGORY_TABS: Array<{
+  id: CatalogTab;
+  label: string;
+}> = [
+  { id: "all", label: "All" },
+  { id: "scooters", label: "Scooters" },
+  { id: "ebikes", label: "E-bikes" },
+  { id: "audio", label: "Audio" },
+];
+
+function money(value: number) {
+  const safeValue = Number(value);
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-  }).format(Number(n) || 0);
+  }).format(
+    Number.isFinite(safeValue)
+      ? safeValue
+      : 0
+  );
 }
 
 function scrollToId(id: string) {
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined") {
+    return;
+  }
 
   document.getElementById(id)?.scrollIntoView({
     behavior: "smooth",
@@ -38,8 +67,16 @@ function SectionTitle({
   subtitle?: string;
   align?: "left" | "center";
 }) {
+  const centered = align === "center";
+
   return (
-    <div className={`mb-8 ${align === "center" ? "text-center" : ""}`}>
+    <div
+      className={`mb-8 ${
+        centered
+          ? "text-center"
+          : ""
+      }`}
+    >
       {eyebrow ? (
         <div className="inline-flex rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-black uppercase tracking-[.22em] text-white/45">
           {eyebrow}
@@ -53,7 +90,9 @@ function SectionTitle({
       {subtitle ? (
         <p
           className={`mt-4 max-w-2xl text-sm leading-relaxed text-[var(--muted)] md:text-base ${
-            align === "center" ? "mx-auto" : ""
+            centered
+              ? "mx-auto"
+              : ""
           }`}
         >
           {subtitle}
@@ -72,8 +111,13 @@ function MiniStat({
 }) {
   return (
     <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-4 transition hover:border-white/15 hover:bg-white/[0.065]">
-      <div className="text-xs font-semibold text-white/40">{label}</div>
-      <div className="mt-1 text-2xl font-black text-white">{value}</div>
+      <div className="text-xs font-semibold text-white/40">
+        {label}
+      </div>
+
+      <div className="mt-1 text-2xl font-black text-white">
+        {value}
+      </div>
     </div>
   );
 }
@@ -87,8 +131,13 @@ function InfoCard({
 }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-5 transition hover:border-white/15 hover:bg-white/[0.065]">
-      <div className="font-black text-white">{title}</div>
-      <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{body}</div>
+      <div className="font-black text-white">
+        {title}
+      </div>
+
+      <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+        {body}
+      </div>
     </div>
   );
 }
@@ -110,28 +159,43 @@ function ContactLinkCard({
       <div className="text-xs font-black uppercase tracking-[.18em] text-white/35">
         {title}
       </div>
-      <div className="mt-2 break-words text-sm font-bold text-white/85">{value}</div>
+
+      <div className="mt-2 break-words text-sm font-bold text-white/85">
+        {value}
+      </div>
     </a>
   );
 }
 
-function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
-  const isConfirm = type === "confirm";
+function AffirmReturnPage({
+  type,
+}: {
+  type: "confirm" | "cancel";
+}) {
+  const isConfirm =
+    type === "confirm";
 
   return (
-    <div id="home" className="anchor min-h-screen">
+    <div
+      id="home"
+      className="anchor min-h-screen"
+    >
       <Navbar />
 
       <main className="mx-auto max-w-3xl px-4 py-10">
         <section className="section">
           <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0d1422]/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,.45)] backdrop-blur-2xl md:p-10">
             <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
+
             <div className="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-violet-500/15 blur-3xl" />
 
             <div className="relative">
               <div className="badge inline-flex items-center gap-2">
                 <IconBolt className="h-4 w-4" />
-                {isConfirm ? "Affirm • Confirmation" : "Affirm • Canceled"}
+
+                {isConfirm
+                  ? "Affirm • Confirmation"
+                  : "Affirm • Canceled"}
               </div>
 
               <h1 className="h-serif mt-5 text-4xl leading-[1.02] text-white md:text-5xl">
@@ -147,11 +211,17 @@ function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
               </p>
 
               <div className="mt-7 flex flex-col gap-2 sm:flex-row">
-                <a className="btn btn-primary px-6 py-3 text-center" href="/">
+                <a
+                  className="btn btn-primary px-6 py-3 text-center"
+                  href="/"
+                >
                   Return to store
                 </a>
 
-                <a className="btn px-6 py-3 text-center" href={`mailto:${site.email}`}>
+                <a
+                  className="btn px-6 py-3 text-center"
+                  href={`mailto:${site.email}`}
+                >
                   Contact support
                 </a>
               </div>
@@ -181,42 +251,54 @@ function AffirmReturnPage({ type }: { type: "confirm" | "cancel" }) {
 }
 
 function HomePage() {
-  const [tab, setTab] = useState<CatalogTab>("all");
+  const [tab, setTab] =
+    useState<CatalogTab>("all");
 
-  const featured = useMemo(() => {
-    return products.filter((p) => p.featured).slice(0, 6);
-  }, []);
+  const featured = useMemo(
+    () =>
+      products
+        .filter(
+          (product) =>
+            product.featured
+        )
+        .slice(0, 6),
+    []
+  );
 
   const filtered = useMemo(() => {
-    if (tab === "all") return products;
-    return products.filter((p) => p.category === tab);
+    if (tab === "all") {
+      return products;
+    }
+
+    return products.filter(
+      (product) =>
+        product.category === tab
+    );
   }, [tab]);
 
-  const storeImages = [
-    "/IMG/store-front.jpeg",
-    "/IMG/store-inside.jpeg",
-    "/IMG/tienda-fisica-voltride.jpeg",
-  ];
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    site.address || "Miami"
+  )}`;
 
-  const mapsUrl = useMemo(() => {
-    const q = encodeURIComponent(site.address || "Miami");
-    return `https://www.google.com/maps/search/?api=1&query=${q}`;
-  }, []);
+  const featuredMinPrice =
+    useMemo(() => {
+      if (!featured.length) {
+        return 0;
+      }
 
-  const featuredMinPrice = useMemo(() => {
-    if (!featured.length) return 0;
-    return Math.min(...featured.map((p) => Number(p.price) || 0));
-  }, [featured]);
-
-  const categoryTabs: Array<{ id: CatalogTab; label: string }> = [
-    { id: "all", label: "All" },
-    { id: "scooters", label: "Scooters" },
-    { id: "ebikes", label: "E-bikes" },
-    { id: "audio", label: "Audio" },
-  ];
+      return Math.min(
+        ...featured.map(
+          (product) =>
+            Number(product.price) || 0
+        )
+      );
+    }, [featured]);
 
   return (
-    <div id="home" className="anchor">
+    <div
+      id="home"
+      className="anchor"
+    >
       <Navbar />
 
       <main className="mx-auto max-w-6xl px-4">
@@ -224,30 +306,44 @@ function HomePage() {
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.15fr_.85fr]">
             <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0d1422]/75 p-6 shadow-[0_24px_80px_rgba(0,0,0,.45)] backdrop-blur-2xl md:p-10">
               <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-fuchsia-500/15 blur-3xl" />
+
               <div className="pointer-events-none absolute -bottom-24 right-10 h-64 w-64 rounded-full bg-lime-300/10 blur-3xl" />
 
               <div className="relative">
                 <div className="badge inline-flex items-center gap-2">
                   <IconBolt className="h-4 w-4" />
-                  Miami • Electric Mobility • Local Store
+
+                  Miami • Electric Mobility •
+                  Local Store
                 </div>
 
                 <h1 className="h-serif mt-6 max-w-2xl text-5xl leading-[0.96] text-white md:text-7xl">
                   Clean power.
                   <br />
-                  <span className="text-white/85">Bold rides.</span>
+
+                  <span className="text-white/85">
+                    Bold rides.
+                  </span>
                 </h1>
 
                 <p className="mt-5 max-w-xl text-sm leading-relaxed text-[var(--muted)] md:text-base">
-                  Premium scooters, e-bikes and accessories from Voltride Electric
-                  LLC. Browse online, ask about availability, and checkout with card,
-                  Affirm, or Acima financing options.
+                  Premium scooters, e-bikes,
+                  and accessories from
+                  Voltride Electric LLC.
+                  Browse online, ask about
+                  availability, and check out
+                  with card, Affirm, or Acima
+                  leasing options.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-2 sm:flex-row">
                   <button
                     className="btn btn-primary px-6 py-3"
-                    onClick={() => scrollToId("catalog")}
+                    onClick={() =>
+                      scrollToId(
+                        "catalog"
+                      )
+                    }
                     type="button"
                   >
                     Browse catalog
@@ -255,7 +351,11 @@ function HomePage() {
 
                   <button
                     className="btn px-6 py-3"
-                    onClick={() => scrollToId("store")}
+                    onClick={() =>
+                      scrollToId(
+                        "store"
+                      )
+                    }
                     type="button"
                   >
                     Visit store
@@ -263,18 +363,49 @@ function HomePage() {
                 </div>
 
                 <div className="mt-7 flex flex-wrap gap-2">
-                  <span className="badge">Acima financing</span>
-                  <span className="badge">Pay with Affirm</span>
-                  <span className="badge">Pay by card</span>
-                  <span className="badge">Local pickup</span>
-                  <span className="badge">Miami showroom</span>
+                  <span className="badge">
+                    Acima leasing
+                  </span>
+
+                  <span className="badge">
+                    Pay with Affirm
+                  </span>
+
+                  <span className="badge">
+                    Pay by card
+                  </span>
+
+                  <span className="badge">
+                    Local pickup
+                  </span>
+
+                  <span className="badge">
+                    Miami showroom
+                  </span>
                 </div>
 
                 <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <MiniStat label="Featured items" value={featured.length} />
-                  <MiniStat label="Checkout" value="Fast" />
-                  <MiniStat label="Pickup" value="Local" />
-                  <MiniStat label="Location" value="Miami" />
+                  <MiniStat
+                    label="Featured items"
+                    value={
+                      featured.length
+                    }
+                  />
+
+                  <MiniStat
+                    label="Checkout"
+                    value="Fast"
+                  />
+
+                  <MiniStat
+                    label="Pickup"
+                    value="Local"
+                  />
+
+                  <MiniStat
+                    label="Location"
+                    value="Miami"
+                  />
                 </div>
               </div>
             </div>
@@ -288,30 +419,40 @@ function HomePage() {
               />
 
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/20" />
+
               <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(217,70,239,.32),rgba(163,230,53,.20),rgba(34,211,238,.16))]" />
 
               <div className="relative flex min-h-[420px] flex-col justify-end p-6 md:p-8">
-                <div className="badge w-fit">Physical Store</div>
+                <div className="badge w-fit">
+                  Physical Store
+                </div>
 
                 <h2 className="h-serif mt-4 text-4xl leading-tight text-white">
-                  Visit Voltride Electric in Miami.
+                  Visit Voltride Electric
+                  in Miami.
                 </h2>
 
                 <p className="mt-3 text-sm leading-relaxed text-white/75">
-                  Scooters, e-bikes and accessories available for local pickup.
-                  Message us first to confirm stock.
+                  Scooters, e-bikes, and
+                  accessories available for
+                  local pickup. Message us
+                  first to confirm stock.
                 </p>
 
                 <div className="mt-5 grid grid-cols-3 gap-2">
-                  {storeImages.map((img) => (
-                    <img
-                      key={img}
-                      src={img}
-                      alt="Voltride Electric store"
-                      className="h-20 rounded-2xl border border-white/10 object-cover"
-                      loading="lazy"
-                    />
-                  ))}
+                  {STORE_IMAGES.map(
+                    (image, index) => (
+                      <img
+                        key={image}
+                        src={image}
+                        alt={`Voltride Electric store view ${
+                          index + 1
+                        }`}
+                        className="h-20 w-full rounded-2xl border border-white/10 object-cover"
+                        loading="lazy"
+                      />
+                    )
+                  )}
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2 sm:flex-row">
@@ -324,7 +465,10 @@ function HomePage() {
                     Get directions
                   </a>
 
-                  <a className="btn px-5 py-3 text-center" href={`mailto:${site.email}`}>
+                  <a
+                    className="btn px-5 py-3 text-center"
+                    href={`mailto:${site.email}`}
+                  >
                     Email us
                   </a>
                 </div>
@@ -333,21 +477,32 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="section" id="featured">
+        <section
+          className="section"
+          id="featured"
+        >
           <SectionTitle
             eyebrow="Curated"
             title="Featured picks"
-            subtitle="A clean selection of scooters, e-bikes and accessories ready for quick browsing."
+            subtitle="A clean selection of scooters, e-bikes, and accessories ready for quick browsing."
           />
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {featured.map((p) => (
-              <ProductCard key={p.id} p={p} />
-            ))}
+            {featured.map(
+              (product) => (
+                <ProductCard
+                  key={product.id}
+                  p={product}
+                />
+              )
+            )}
           </div>
         </section>
 
-        <section className="section anchor" id="catalog">
+        <section
+          className="section anchor"
+          id="catalog"
+        >
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <SectionTitle
               eyebrow="Catalog"
@@ -355,32 +510,60 @@ function HomePage() {
               subtitle="Filter by category and add items to your cart. Ask us about availability before pickup."
             />
 
-            <div className="flex flex-wrap gap-2 md:pb-8">
-              {categoryTabs.map((item) => (
-                <button
-                  key={item.id}
-                  className={`btn ${tab === item.id ? "btn-primary" : ""}`}
-                  onClick={() => setTab(item.id)}
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div
+              className="flex flex-wrap gap-2 md:pb-8"
+              aria-label="Catalog categories"
+            >
+              {CATEGORY_TABS.map(
+                (item) => (
+                  <button
+                    key={item.id}
+                    className={`btn ${
+                      tab === item.id
+                        ? "btn-primary"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      setTab(
+                        item.id
+                      )
+                    }
+                    type="button"
+                    aria-pressed={
+                      tab === item.id
+                    }
+                    aria-controls="catalog-grid"
+                  >
+                    {item.label}
+                  </button>
+                )
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((p) => (
-              <ProductCard key={p.id} p={p} />
-            ))}
+          <div
+            id="catalog-grid"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
+          >
+            {filtered.map(
+              (product) => (
+                <ProductCard
+                  key={product.id}
+                  p={product}
+                />
+              )
+            )}
           </div>
         </section>
 
-        <section className="section anchor" id="about">
+        <section
+          className="section anchor"
+          id="about"
+        >
           <SectionTitle
             eyebrow="About"
             title="Electric mobility with real local support"
-            subtitle="Voltride Electric LLC helps customers choose scooters, e-bikes and accessories for daily city mobility."
+            subtitle="Voltride Electric LLC helps customers choose scooters, e-bikes, and accessories for daily city mobility."
           />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -389,19 +572,42 @@ function HomePage() {
 
               <div className="relative">
                 <div className="h-serif text-3xl leading-tight text-white md:text-4xl">
-                  Shop online, then confirm pickup or availability with our team.
+                  Shop online, then
+                  confirm pickup or
+                  availability with our
+                  team.
                 </div>
 
                 <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
-                  Browse the catalog, ask about the product you like, and we’ll help
-                  with availability, charger details, compatibility and pickup options.
+                  Browse the catalog, ask
+                  about the product you
+                  like, and we’ll help
+                  with availability,
+                  charger details,
+                  compatibility, and
+                  pickup options.
                 </p>
 
                 <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <InfoCard title="Scooters" body="Daily city rides and quick mobility." />
-                  <InfoCard title="E-bikes" body="Comfortable options for longer rides." />
-                  <InfoCard title="Accessories" body="Audio, extras and ride upgrades." />
-                  <InfoCard title="Pickup help" body="Local support before purchase." />
+                  <InfoCard
+                    title="Scooters"
+                    body="Daily city rides and quick mobility."
+                  />
+
+                  <InfoCard
+                    title="E-bikes"
+                    body="Comfortable options for longer rides."
+                  />
+
+                  <InfoCard
+                    title="Accessories"
+                    body="Audio, extras, and ride upgrades."
+                  />
+
+                  <InfoCard
+                    title="Pickup help"
+                    body="Local support before purchase."
+                  />
                 </div>
               </div>
             </div>
@@ -420,12 +626,22 @@ function HomePage() {
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  <ContactLinkCard title="Address" value={site.address} href={mapsUrl} />
+                  <ContactLinkCard
+                    title="Address"
+                    value={
+                      site.address
+                    }
+                    href={mapsUrl}
+                  />
+
                   <ContactLinkCard
                     title="Phone"
-                    value={site.phonePretty}
+                    value={
+                      site.phonePretty
+                    }
                     href={`tel:${site.phoneE164}`}
                   />
+
                   <ContactLinkCard
                     title="Email"
                     value={site.email}
@@ -437,11 +653,14 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="section anchor" id="store">
+        <section
+          className="section anchor"
+          id="store"
+        >
           <SectionTitle
             eyebrow="Store"
             title="Visit our physical store"
-            subtitle="A quick look at our storefront in Miami. Local pickup available — ask us for availability and options."
+            subtitle="A quick look at our storefront in Miami. Local pickup available — ask us about availability and options."
           />
 
           <div className="rounded-[30px] border border-white/10 bg-[#0d1422]/70 p-4 shadow-[0_24px_80px_rgba(0,0,0,.38)] backdrop-blur-2xl md:p-6">
@@ -452,17 +671,35 @@ function HomePage() {
                 </div>
 
                 <div className="mt-5">
-                  <div className="font-black text-white">Local pickup</div>
+                  <div className="font-black text-white">
+                    Local pickup
+                  </div>
+
                   <div className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-                    Reserve your item, we confirm availability, then you pick up
-                    in-store. Fast and simple.
+                    Reserve your item,
+                    we confirm
+                    availability, then
+                    you pick it up
+                    in-store. Fast and
+                    simple.
                   </div>
                 </div>
 
                 <div className="mt-5 space-y-3">
-                  <InfoCard title="1. Ask about stock" body="Send the product name or screenshot." />
-                  <InfoCard title="2. We confirm" body="We confirm availability and pickup time." />
-                  <InfoCard title="3. Pickup" body="Come by the store and you’re good to go." />
+                  <InfoCard
+                    title="1. Ask about stock"
+                    body="Send the product name or a screenshot."
+                  />
+
+                  <InfoCard
+                    title="2. We confirm"
+                    body="We confirm availability and pickup time."
+                  />
+
+                  <InfoCard
+                    title="3. Pickup"
+                    body="Come by the store and you’re good to go."
+                  />
                 </div>
               </div>
 
@@ -472,26 +709,34 @@ function HomePage() {
                   alt="Voltride Electric LLC physical store"
                   loading="lazy"
                   className="h-[420px] w-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
+                  onError={(event) => {
+                    event.currentTarget.style.display =
+                      "none";
                   }}
                 />
 
                 <div className="grid grid-cols-3 gap-2 p-3">
-                  {storeImages.map((img) => (
-                    <img
-                      key={img}
-                      src={img}
-                      alt="Voltride Electric store"
-                      className="h-24 w-full rounded-2xl border border-white/10 object-cover"
-                      loading="lazy"
-                    />
-                  ))}
+                  {STORE_IMAGES.map(
+                    (image, index) => (
+                      <img
+                        key={image}
+                        src={image}
+                        alt={`Voltride Electric store view ${
+                          index + 1
+                        }`}
+                        className="h-24 w-full rounded-2xl border border-white/10 object-cover"
+                        loading="lazy"
+                      />
+                    )
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm text-[var(--muted)]">
-                    Address: <span className="text-white/90">{site.address}</span>
+                    Address:{" "}
+                    <span className="text-white/90">
+                      {site.address}
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -506,7 +751,11 @@ function HomePage() {
 
                     <button
                       className="btn btn-primary px-5 py-3"
-                      onClick={() => scrollToId("contact")}
+                      onClick={() =>
+                        scrollToId(
+                          "contact"
+                        )
+                      }
                       type="button"
                     >
                       Ask about pickup
@@ -523,7 +772,9 @@ function HomePage() {
                 <div className="mt-5 space-y-3">
                   <ContactLinkCard
                     title="Call / text"
-                    value={site.phonePretty}
+                    value={
+                      site.phonePretty
+                    }
                     href={`tel:${site.phoneE164}`}
                   />
 
@@ -534,24 +785,57 @@ function HomePage() {
                   />
 
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-5">
-                    <div className="font-black text-white">Pickup checklist</div>
+                    <div className="font-black text-white">
+                      Pickup checklist
+                    </div>
+
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[var(--muted)]">
-                      <li>Bring ID recommended</li>
-                      <li>Have product name ready</li>
-                      <li>Ask for charger/specs</li>
-                      <li>Confirm pickup time first</li>
+                      <li>
+                        Bringing ID is
+                        recommended
+                      </li>
+
+                      <li>
+                        Have the product
+                        name ready
+                      </li>
+
+                      <li>
+                        Ask about charger
+                        and specs
+                      </li>
+
+                      <li>
+                        Confirm pickup
+                        time first
+                      </li>
                     </ul>
                   </div>
 
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-5">
-                    <div className="font-black text-white">Payments</div>
-                    <div className="mt-2 text-sm text-[var(--muted)]">
-                      Card, Affirm and Acima options available online.
+                    <div className="font-black text-white">
+                      Payments
                     </div>
+
+                    <div className="mt-2 text-sm text-[var(--muted)]">
+                      Card, Affirm, and
+                      Acima leasing
+                      options are
+                      available online.
+                    </div>
+
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="badge">Acima</span>
-                      <span className="badge">Affirm</span>
-                      <span className="badge">Card</span>
+                      <span className="badge">
+                        Acima
+                      </span>
+
+                      <span className="badge">
+                        Affirm
+                      </span>
+
+                      <span className="badge">
+                        Card
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -560,7 +844,10 @@ function HomePage() {
           </div>
         </section>
 
-        <section className="section anchor" id="contact">
+        <section
+          className="section anchor"
+          id="contact"
+        >
           <SectionTitle
             eyebrow="Contact"
             title="Let’s get you on the road"
@@ -574,22 +861,44 @@ function HomePage() {
               method="POST"
               data-netlify="true"
             >
-              <input type="hidden" name="form-name" value="contact" />
+              <input
+                type="hidden"
+                name="form-name"
+                value="contact"
+              />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs font-semibold text-white/45">Name</label>
+                  <label
+                    htmlFor="contact-name"
+                    className="text-xs font-semibold text-white/45"
+                  >
+                    Name
+                  </label>
+
                   <input
+                    id="contact-name"
                     name="name"
+                    autoComplete="name"
                     className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-lime-300/40 focus:ring-2 focus:ring-lime-300/15"
                     placeholder="Your name"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-white/45">Phone</label>
+                  <label
+                    htmlFor="contact-phone"
+                    className="text-xs font-semibold text-white/45"
+                  >
+                    Phone
+                  </label>
+
                   <input
+                    id="contact-phone"
                     name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-lime-300/40 focus:ring-2 focus:ring-lime-300/15"
                     placeholder="(786) 000-0000"
                   />
@@ -597,18 +906,33 @@ function HomePage() {
               </div>
 
               <div className="mt-3">
-                <label className="text-xs font-semibold text-white/45">Email</label>
+                <label
+                  htmlFor="contact-email"
+                  className="text-xs font-semibold text-white/45"
+                >
+                  Email
+                </label>
+
                 <input
+                  id="contact-email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   className="mt-1 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-lime-300/40 focus:ring-2 focus:ring-lime-300/15"
                   placeholder="you@email.com"
                 />
               </div>
 
               <div className="mt-3">
-                <label className="text-xs font-semibold text-white/45">Message</label>
+                <label
+                  htmlFor="contact-message"
+                  className="text-xs font-semibold text-white/45"
+                >
+                  Message
+                </label>
+
                 <textarea
+                  id="contact-message"
                   name="message"
                   rows={5}
                   className="mt-1 w-full resize-none rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-lime-300/40 focus:ring-2 focus:ring-lime-300/15"
@@ -617,17 +941,26 @@ function HomePage() {
               </div>
 
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                <button className="btn btn-primary px-6 py-3" type="submit">
+                <button
+                  className="btn btn-primary px-6 py-3"
+                  type="submit"
+                >
                   Send message
                 </button>
 
-                <a className="btn px-6 py-3 text-center" href={`mailto:${site.email}`}>
+                <a
+                  className="btn px-6 py-3 text-center"
+                  href={`mailto:${site.email}`}
+                >
                   Or email us
                 </a>
               </div>
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.045] p-3 text-xs leading-relaxed text-[var(--muted)]">
-                Direct email: <span className="font-bold text-white/80">{site.email}</span>
+                Direct email:{" "}
+                <span className="font-bold text-white/80">
+                  {site.email}
+                </span>
               </div>
             </form>
 
@@ -641,26 +974,44 @@ function HomePage() {
 
               <div className="p-6 md:p-8">
                 <div className="h-serif text-3xl leading-tight text-white">
-                  Need help choosing the right ride?
+                  Need help choosing the
+                  right ride?
                 </div>
 
                 <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-                  Contact us with the product name, your budget and how you plan to
-                  use it. We can help you choose between scooters, e-bikes and
+                  Contact us with the
+                  product name, your
+                  budget, and how you
+                  plan to use it. We can
+                  help you choose between
+                  scooters, e-bikes, and
                   accessories.
                 </p>
 
                 <div className="mt-6 space-y-3">
-                  <InfoCard title="Best for quick city rides" body="Electric scooters" />
-                  <InfoCard title="Best for comfort" body="E-bikes" />
+                  <InfoCard
+                    title="Best for quick city rides"
+                    body="Electric scooters"
+                  />
+
+                  <InfoCard
+                    title="Best for comfort"
+                    body="E-bikes"
+                  />
+
                   <InfoCard
                     title="Starting featured price"
-                    body={money(featuredMinPrice)}
+                    body={money(
+                      featuredMinPrice
+                    )}
                   />
                 </div>
 
                 <div className="mt-5 text-xs text-[var(--muted)]">
-                  Email updated to: <b className="text-white/80">{site.email}</b>
+                  Email:{" "}
+                  <b className="text-white/80">
+                    {site.email}
+                  </b>
                 </div>
               </div>
             </div>
@@ -677,11 +1028,19 @@ function HomePage() {
 export default function App() {
   const pathname =
     typeof window !== "undefined"
-      ? window.location.pathname.replace(/\/+$/, "") || "/"
+      ? window.location.pathname.replace(
+          /\/+$/,
+          ""
+        ) || "/"
       : "/";
 
-  const isAffirmConfirm = pathname === "/checkout/affirm/confirm";
-  const isAffirmCancel = pathname === "/checkout/affirm/cancel";
+  const isAffirmConfirm =
+    pathname ===
+    "/checkout/affirm/confirm";
+
+  const isAffirmCancel =
+    pathname ===
+    "/checkout/affirm/cancel";
 
   return (
     <I18nProvider>

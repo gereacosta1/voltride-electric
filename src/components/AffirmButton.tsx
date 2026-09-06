@@ -1,5 +1,13 @@
 // src/components/AffirmButton.tsx
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { loadAffirm } from "../lib/affirms";
 import {
   buildAffirmCheckout,
@@ -25,7 +33,26 @@ type Props = {
 };
 
 const MIN_TOTAL_CENTS = 5000;
-const toCents = (usd = 0) => Math.max(0, Math.round((Number(usd) || 0) * 100));
+const CHECKOUT_ENDPOINT = "/api/affirm-checkout";
+const AUTHORIZE_ENDPOINT = "/api/affirm-authorize";
+const TRACE_ENDPOINT = "/api/trace";
+
+const toCents = (usd = 0) =>
+  Math.max(0, Math.round((Number(usd) || 0) * 100));
+
+function normalizeQuantity(value: unknown) {
+  const quantity = Number(value);
+
+  if (!Number.isFinite(quantity)) return 1;
+
+  return Math.max(1, Math.floor(quantity));
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return String(error || "");
+}
 
 const isEmail = (v: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
@@ -58,6 +85,32 @@ type BuyerForm = {
   zip: string;
 };
 
+type AffirmCheckoutCallbacks = {
+  onSuccess: (result: { checkout_token: string }) => void | Promise<void>;
+  onFail: () => void;
+  onValidationError: () => void;
+  onClose: () => void;
+};
+
+type AffirmCheckoutApi = {
+  (options: { checkout_token: string }): void;
+  open: (callbacks: AffirmCheckoutCallbacks) => void;
+};
+
+type AffirmClient = {
+  checkout?: AffirmCheckoutApi;
+};
+
+type AffirmWindow = Window & {
+  affirm?: AffirmClient;
+};
+
+function getAffirmClient(): AffirmClient | null {
+  if (typeof window === "undefined") return null;
+
+  return (window as AffirmWindow).affirm ?? null;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -71,7 +124,7 @@ function safeJsonParse<T>(raw: string | null): T | null {
   }
 }
 
-function safeJsonStringify(v: any) {
+function safeJsonStringify(v: unknown) {
   try {
     return JSON.stringify(v, null, 2);
   } catch {
@@ -86,7 +139,13 @@ function makeDebugId() {
 }
 
 function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  if (typeof window === "undefined") return false;
+
+  try {
+    return Boolean(window.localStorage);
+  } catch {
+    return false;
+  }
 }
 
 function getOrInitDebugState(): DebugState {
@@ -116,7 +175,12 @@ function getOrInitDebugState(): DebugState {
 
 function persistDebugState(next: DebugState) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(next));
+
+  try {
+    window.localStorage.setItem(DEBUG_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Debug persistence must never block checkout.
+  }
 }
 
 function normalizeAffirmEnv(value: string): "prod" | "sandbox" {
@@ -238,7 +302,8 @@ function Toast({
   return (
     <button
       type="button"
-      role="status"
+      role={type === "error" ? "alert" : "status"}
+      aria-live={type === "error" ? "assertive" : "polite"}
       onClick={onClose}
       className={`fixed bottom-6 left-1/2 z-[9999] max-w-[92vw] -translate-x-1/2 rounded-2xl border px-4 py-3 text-sm font-bold shadow-2xl backdrop-blur-xl transition ${style}`}
     >
@@ -255,7 +320,7 @@ function NiceModal({
   onPrimary,
   secondaryLabel,
   onClose,
-  disableClose,
+  disableClose = false,
 }: {
   open: boolean;
   title: string;
@@ -266,33 +331,64 @@ function NiceModal({
   onClose: () => void;
   disableClose?: boolean;
 }) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open || disableClose || typeof window === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, disableClose, onClose]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-        onClick={disableClose ? undefined : onClose}
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm disabled:cursor-default"
+        onClick={onClose}
         aria-label="Close modal overlay"
+        disabled={disableClose}
       />
 
-      <div className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1422] text-white shadow-[0_30px_100px_rgba(0,0,0,.55)]">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-sky-400/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl" />
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1422] text-white shadow-[0_30px_100px_rgba(0,0,0,.55)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <div
+          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-sky-400/15 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl"
+          aria-hidden="true"
+        />
 
         <div className="relative border-b border-white/10 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
-            <h3 className="text-xl font-black text-white">{title}</h3>
+            <h3 id={titleId} className="text-xl font-black text-white">
+              {title}
+            </h3>
 
             <button
               onClick={onClose}
-              className={`rounded-xl p-1 text-white/50 transition hover:bg-white/10 hover:text-white ${
-                disableClose ? "pointer-events-none opacity-40" : ""
-              }`}
+              className="rounded-xl p-1 text-white/50 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Close"
-              title={disableClose ? "Complete the form to continue" : "Close"}
+              title={disableClose ? "Please wait" : "Close"}
               type="button"
+              disabled={disableClose}
             >
               ✕
             </button>
@@ -305,19 +401,18 @@ function NiceModal({
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3">
-            {secondaryLabel && (
+            {secondaryLabel ? (
               <button
                 type="button"
                 onClick={onClose}
-                className={`rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/75 transition hover:bg-white/[0.09] hover:text-white ${
-                  disableClose ? "pointer-events-none opacity-40" : ""
-                }`}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/75 transition hover:bg-white/[0.09] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={disableClose}
               >
                 {secondaryLabel}
               </button>
-            )}
+            ) : null}
 
-            {primaryLabel && (
+            {primaryLabel ? (
               <button
                 type="button"
                 onClick={onPrimary}
@@ -325,7 +420,7 @@ function NiceModal({
               >
                 {primaryLabel}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -340,12 +435,17 @@ function BuyerInfoForm({
   value: BuyerForm;
   onChange: (next: BuyerForm) => void;
 }) {
-  const set = (k: keyof BuyerForm, v: string) => onChange({ ...value, [k]: v });
+  const set = (key: keyof BuyerForm, nextValue: string) => {
+    onChange({
+      ...value,
+      [key]: nextValue,
+    });
+  };
 
   const inputClass =
     "w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-sky-300/40 focus:ring-2 focus:ring-sky-300/15";
 
-  const labelClass = "mb-1 text-xs font-semibold text-white/60";
+  const labelClass = "mb-1 block text-xs font-semibold text-white/60";
 
   return (
     <div className="space-y-3">
@@ -353,93 +453,104 @@ function BuyerInfoForm({
         Enter the buyer information to continue with Affirm financing.
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className={labelClass}>First name</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className={labelClass}>First name</span>
           <input
             className={inputClass}
             value={value.firstName}
-            onChange={(e) => set("firstName", e.target.value)}
+            onChange={(event) => set("firstName", event.target.value)}
             autoComplete="given-name"
             placeholder="John"
           />
-        </div>
+        </label>
 
-        <div>
-          <div className={labelClass}>Last name</div>
+        <label className="block">
+          <span className={labelClass}>Last name</span>
           <input
             className={inputClass}
             value={value.lastName}
-            onChange={(e) => set("lastName", e.target.value)}
+            onChange={(event) => set("lastName", event.target.value)}
             autoComplete="family-name"
             placeholder="Smith"
           />
-        </div>
+        </label>
       </div>
 
-      <div>
-        <div className={labelClass}>Email</div>
+      <label className="block">
+        <span className={labelClass}>Email</span>
         <input
           className={inputClass}
           value={value.email}
-          onChange={(e) => set("email", e.target.value)}
+          onChange={(event) => set("email", event.target.value)}
+          type="email"
+          inputMode="email"
           autoComplete="email"
           placeholder="customer@email.com"
         />
-      </div>
+      </label>
 
-      <div>
-        <div className={labelClass}>Address line 1</div>
+      <label className="block">
+        <span className={labelClass}>Address line 1</span>
         <input
           className={inputClass}
           value={value.line1}
-          onChange={(e) => set("line1", e.target.value)}
+          onChange={(event) => set("line1", event.target.value)}
           autoComplete="address-line1"
           placeholder="11510 Biscayne Blvd"
         />
-      </div>
+      </label>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className={labelClass}>City</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className={labelClass}>City</span>
           <input
             className={inputClass}
             value={value.city}
-            onChange={(e) => set("city", e.target.value)}
+            onChange={(event) => set("city", event.target.value)}
             autoComplete="address-level2"
             placeholder="Miami"
           />
-        </div>
+        </label>
 
-        <div>
-          <div className={labelClass}>State</div>
+        <label className="block">
+          <span className={labelClass}>State</span>
           <input
             className={inputClass}
             value={value.state}
-            onChange={(e) => set("state", e.target.value.toUpperCase())}
+            onChange={(event) =>
+              set("state", event.target.value.toUpperCase().slice(0, 2))
+            }
             maxLength={2}
             placeholder="FL"
             autoComplete="address-level1"
           />
-        </div>
+        </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className={labelClass}>ZIP</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className={labelClass}>ZIP</span>
           <input
             className={inputClass}
             value={value.zip}
-            onChange={(e) => set("zip", e.target.value)}
+            onChange={(event) => set("zip", event.target.value)}
+            inputMode="numeric"
             placeholder="33181"
             autoComplete="postal-code"
           />
-        </div>
+        </label>
 
-        <div>
-          <div className={labelClass}>Country</div>
-          <input className={`${inputClass} opacity-70`} value="US" disabled />
-        </div>
+        <label className="block">
+          <span className={labelClass}>Country</span>
+          <input
+            className={`${inputClass} cursor-not-allowed opacity-70`}
+            value="US"
+            disabled
+            readOnly
+            aria-label="Country"
+          />
+        </label>
       </div>
     </div>
   );
@@ -456,10 +567,6 @@ export default function AffirmButton({
   const ENV = normalizeAffirmEnv(
     String(import.meta.env.VITE_AFFIRM_ENV || import.meta.env.AFFIRM_ENV || "prod")
   );
-
-  const CHECKOUT_ENDPOINT = "/api/affirm-checkout";
-  const AUTHORIZE_ENDPOINT = "/api/affirm-authorize";
-  const TRACE_ENDPOINT = "/api/trace";
 
   const showDebugPanel = Boolean(import.meta.env.DEV);
 
@@ -493,7 +600,7 @@ export default function AffirmButton({
 
   const [debugState, setDebugStateUI] = useState<DebugState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
-  const lastFailureRef = useRef<null | "server" | "client">(null);
+  const flowOutcomeRef = useRef<null | "server" | "client" | "success">(null);
 
   useEffect(() => {
     try {
@@ -503,45 +610,64 @@ export default function AffirmButton({
     }
   }, []);
 
-  const addDebugEvent = (step: string, data?: Record<string, any>) => {
-    try {
-      const st = getOrInitDebugState();
+  const addDebugEvent = useCallback(
+    (step: string, data?: Record<string, any>) => {
+      try {
+        const st = getOrInitDebugState();
 
-      const next: DebugState = {
-        ...st,
-        events: [...st.events, { ts: nowIso(), step, data: data || undefined }].slice(
-          -DEBUG_MAX_EVENTS
-        ),
-      };
+        const next: DebugState = {
+          ...st,
+          events: [
+            ...st.events,
+            {
+              ts: nowIso(),
+              step,
+              data: data || undefined,
+            },
+          ].slice(-DEBUG_MAX_EVENTS),
+        };
 
-      persistDebugState(next);
-      setDebugStateUI(next);
-    } catch {
-      // ignore
-    }
-  };
+        persistDebugState(next);
+        setDebugStateUI(next);
+      } catch {
+        // Debugging must never block checkout.
+      }
+    },
+    []
+  );
 
-  const traceServer = async (step: string, data?: Record<string, any>) => {
-    try {
-      const st = getOrInitDebugState();
+  const traceServer = useCallback(
+    async (step: string, data?: Record<string, any>) => {
+      try {
+        const st = getOrInitDebugState();
 
-      await fetch(TRACE_ENDPOINT, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          debugId: st.debugId,
-          step,
-          ts: nowIso(),
-          data,
-          ua: typeof navigator !== "undefined" ? navigator.userAgent : "",
-          href: typeof window !== "undefined" ? window.location.href : "",
-        }),
-        keepalive: true,
-      });
-    } catch {
-      // ignore
-    }
-  };
+        await fetch(TRACE_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            debugId: st.debugId,
+            step,
+            ts: nowIso(),
+            data,
+            ua:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent
+                : "",
+            href:
+              typeof window !== "undefined"
+                ? window.location.href
+                : "",
+          }),
+          keepalive: true,
+        });
+      } catch {
+        // Tracing must never block checkout.
+      }
+    },
+    []
+  );
 
   const showToast = (
     type: "success" | "error" | "info",
@@ -576,7 +702,7 @@ export default function AffirmButton({
       id: (it.id ?? it.sku ?? String(i + 1)) as string | number,
       title: String(it.name ?? `Item ${i + 1}`).trim() || `Item ${i + 1}`,
       price: Math.max(0, Number(it.price) || 0),
-      qty: Math.max(1, Number(it.qty) || 1),
+      qty: normalizeQuantity(it.qty),
       url: typeof it.url === "string" && it.url.trim() ? it.url : "/",
       image: typeof it.image === "string" && it.image.trim() ? it.image : undefined,
     }));
@@ -615,16 +741,16 @@ export default function AffirmButton({
       })
       .catch((e) => {
         if (mounted) setReady(false);
-        addDebugEvent("affirm_load_fail", { message: String(e?.message || e) });
-        traceServer("affirm_load_fail", { message: String(e?.message || e) }).catch(
-          () => {}
-        );
+        const message = getErrorMessage(e);
+
+        addDebugEvent("affirm_load_fail", { message });
+        traceServer("affirm_load_fail", { message }).catch(() => {});
       });
 
     return () => {
       mounted = false;
     };
-  }, [PUBLIC_KEY, ENV]);
+  }, [PUBLIC_KEY, ENV, addDebugEvent, traceServer]);
 
   const buyerValid =
     buyer.firstName.trim().length > 0 &&
@@ -653,8 +779,8 @@ export default function AffirmButton({
   async function startAffirmFlow() {
     if (opening || typeof window === "undefined") return;
 
-    const affirm = (window as any).affirm;
-    lastFailureRef.current = null;
+    const affirm = getAffirmClient();
+    flowOutcomeRef.current = null;
 
     addDebugEvent("open_attempt", {
       cart_items: mapped.length,
@@ -741,7 +867,7 @@ export default function AffirmButton({
       const payload = parsed ?? { _raw: text };
 
       if (!resp.ok) {
-        lastFailureRef.current = "server";
+        flowOutcomeRef.current = "server";
 
         const extracted = extractServerError(payload);
         const pretty =
@@ -792,7 +918,7 @@ export default function AffirmButton({
       }
 
       if (!token) {
-        lastFailureRef.current = "server";
+        flowOutcomeRef.current = "server";
         setModal({
           open: true,
           title: "Affirm response incomplete",
@@ -812,6 +938,8 @@ export default function AffirmButton({
           addDebugEvent("onSuccess", { ...sanitizeToken(finalToken) });
 
           if (!finalToken) {
+            flowOutcomeRef.current = "client";
+
             setModal({
               open: true,
               title: "Missing checkout token",
@@ -827,7 +955,9 @@ export default function AffirmButton({
           try {
             const r = await fetch(AUTHORIZE_ENDPOINT, {
               method: "POST",
-              headers: { "content-type": "application/json" },
+              headers: {
+                "content-type": "application/json",
+              },
               body: JSON.stringify({
                 debug_id: getOrInitDebugState().debugId,
                 checkout_token: finalToken,
@@ -842,7 +972,7 @@ export default function AffirmButton({
             const p = tryParseJson(t) ?? { _raw: t };
 
             if (!r.ok) {
-              lastFailureRef.current = "server";
+              flowOutcomeRef.current = "server";
 
               const extracted = extractServerError(p);
               const pretty =
@@ -871,8 +1001,11 @@ export default function AffirmButton({
                 body: `${pretty}\nHTTP ${r.status}`,
                 retry: true,
               });
+
               return;
             }
+
+            flowOutcomeRef.current = "success";
 
             addDebugEvent("authorize_ok", {
               status: r.status,
@@ -880,13 +1013,28 @@ export default function AffirmButton({
             });
 
             showToast("success", "Affirm request submitted!");
+          } catch (error: unknown) {
+            flowOutcomeRef.current = "server";
+
+            const message = getErrorMessage(error) || "Authorization request failed.";
+
+            addDebugEvent("authorize_network_error", {
+              message: message.slice(0, 400),
+            });
+
+            setModal({
+              open: true,
+              title: "We could not confirm your request",
+              body: message,
+              retry: true,
+            });
           } finally {
             setOpening(false);
           }
         },
 
         onFail: () => {
-          lastFailureRef.current = "client";
+          flowOutcomeRef.current = "client";
           addDebugEvent("onFail");
           setOpening(false);
           setModal({
@@ -898,14 +1046,14 @@ export default function AffirmButton({
         },
 
         onValidationError: () => {
-          lastFailureRef.current = "client";
+          flowOutcomeRef.current = "client";
           addDebugEvent("onValidationError");
           setOpening(false);
           setBuyerModalOpen(true);
         },
 
         onClose: () => {
-          if (lastFailureRef.current === "server") {
+          if (flowOutcomeRef.current !== null) {
             setOpening(false);
             return;
           }
@@ -921,9 +1069,9 @@ export default function AffirmButton({
         },
       });
     } catch (err) {
-      lastFailureRef.current = "client";
+      flowOutcomeRef.current = "client";
       addDebugEvent("checkout_open_fatal", {
-        message: String((err as any)?.message || err),
+        message: getErrorMessage(err),
       });
       setOpening(false);
       showToast("error", "Could not start Affirm.");
@@ -983,12 +1131,18 @@ export default function AffirmButton({
             : "Pay with Affirm"
         }
       >
-        <span className="absolute inset-0 opacity-0 transition group-hover:opacity-100">
+        <span
+          className="absolute inset-0 opacity-0 transition group-hover:opacity-100"
+          aria-hidden="true"
+        >
           <span className="absolute -left-16 top-0 h-full w-24 rotate-12 bg-white/20 blur-xl" />
         </span>
 
         <span className="relative inline-flex items-center justify-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-white/80 shadow-[0_0_16px_rgba(255,255,255,.55)]" />
+          <span
+            className="h-2 w-2 rounded-full bg-white/80 shadow-[0_0_16px_rgba(255,255,255,.55)]"
+            aria-hidden="true"
+          />
           {label}
         </span>
       </button>

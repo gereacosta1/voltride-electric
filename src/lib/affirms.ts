@@ -1,171 +1,454 @@
 // src/lib/affirms.ts
+
+type AffirmCheckoutFunction = ((
+  ...args: unknown[]
+) => unknown) & {
+  open?: (...args: unknown[]) => unknown;
+};
+
+type AffirmSdk = {
+  checkout?: AffirmCheckoutFunction;
+};
+
+type AffirmConfig = {
+  public_api_key: string;
+  script: string;
+};
+
 declare global {
   interface Window {
-    affirm?: any;
-    _affirm_config?: any;
+    affirm?: AffirmSdk;
+    _affirm_config?: AffirmConfig;
   }
 }
 
-let loading: Promise<void> | null = null;
-let loadedScriptSrc: string | null = null;
-let loadedPublicKey: string | null = null;
+type AffirmEnvironment =
+  | "prod"
+  | "sandbox";
 
-function normalizeEnv(env: string): "prod" | "sandbox" {
-  const value = String(env || "").trim().toLowerCase();
+const AFFIRM_READY_TIMEOUT_MS =
+  15_000;
 
-  if (value === "sandbox" || value === "test") return "sandbox";
+const AFFIRM_READY_POLL_MS =
+  50;
+
+let loading: Promise<void> | null =
+  null;
+
+let loadedScriptSrc:
+  | string
+  | null = null;
+
+let loadedPublicKey:
+  | string
+  | null = null;
+
+function normalizeEnv(
+  env: string
+): AffirmEnvironment {
+  const value = String(
+    env || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    value === "sandbox" ||
+    value === "test"
+  ) {
+    return "sandbox";
+  }
+
   return "prod";
 }
 
-function getAffirmScriptUrl(env: "prod" | "sandbox") {
+function getAffirmScriptUrl(
+  env: AffirmEnvironment
+) {
   return env === "sandbox"
     ? "https://cdn1-sandbox.affirm.com/js/v2/affirm.js"
     : "https://cdn1.affirm.com/js/v2/affirm.js";
 }
 
 function canUseDom() {
-  return typeof window !== "undefined" && typeof document !== "undefined";
+  return (
+    typeof window !==
+      "undefined" &&
+    typeof document !==
+      "undefined"
+  );
 }
 
-function waitForAffirmReady(timeoutMs = 15000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!canUseDom()) {
-      reject(new Error("No DOM available"));
-      return;
+function isAffirmReady() {
+  return (
+    canUseDom() &&
+    typeof window.affirm
+      ?.checkout === "function"
+  );
+}
+
+function waitForAffirmReady(
+  timeoutMs =
+    AFFIRM_READY_TIMEOUT_MS
+): Promise<void> {
+  return new Promise(
+    (resolve, reject) => {
+      if (!canUseDom()) {
+        reject(
+          new Error(
+            "No DOM available"
+          )
+        );
+
+        return;
+      }
+
+      const startedAt =
+        Date.now();
+
+      const check = () => {
+        if (isAffirmReady()) {
+          resolve();
+          return;
+        }
+
+        if (
+          Date.now() -
+            startedAt >=
+          timeoutMs
+        ) {
+          reject(
+            new Error(
+              "Affirm script loaded but checkout API did not initialize"
+            )
+          );
+
+          return;
+        }
+
+        window.setTimeout(
+          check,
+          AFFIRM_READY_POLL_MS
+        );
+      };
+
+      check();
     }
-
-    const started = Date.now();
-
-    const tick = () => {
-      if (window.affirm?.checkout && typeof window.affirm.checkout === "function") {
-        resolve();
-        return;
-      }
-
-      if (Date.now() - started > timeoutMs) {
-        reject(new Error("Affirm script loaded but checkout API did not initialize"));
-        return;
-      }
-
-      window.setTimeout(tick, 50);
-    };
-
-    tick();
-  });
+  );
 }
 
-function removeExistingAffirmScript(src?: string | null) {
-  if (!canUseDom() || !src) return;
+function removeExistingAffirmScript(
+  src?: string | null
+) {
+  if (
+    !canUseDom() ||
+    !src
+  ) {
+    return;
+  }
 
-  const scripts = Array.from(document.querySelectorAll("script"));
+  const scripts =
+    document.querySelectorAll<HTMLScriptElement>(
+      "script[src]"
+    );
+
+  scripts.forEach(
+    (script) => {
+      if (
+        script.src === src
+      ) {
+        script.remove();
+      }
+    }
+  );
+}
+
+function findAffirmScript(
+  src: string
+): HTMLScriptElement | null {
+  if (!canUseDom()) {
+    return null;
+  }
+
+  const scripts =
+    document.querySelectorAll<HTMLScriptElement>(
+      "script[src]"
+    );
+
   for (const script of scripts) {
-    if ((script as HTMLScriptElement).src === src) {
-      script.parentNode?.removeChild(script);
+    if (script.src === src) {
+      return script;
     }
   }
+
+  return null;
 }
 
-function sameConfig(scriptSrc: string, publicKey: string) {
-  return loadedScriptSrc === scriptSrc && loadedPublicKey === publicKey;
+function sameConfig(
+  scriptSrc: string,
+  publicKey: string
+) {
+  return (
+    loadedScriptSrc ===
+      scriptSrc &&
+    loadedPublicKey ===
+      publicKey
+  );
 }
 
 function resetAffirmGlobals() {
-  if (!canUseDom()) return;
+  if (!canUseDom()) {
+    return;
+  }
 
   try {
     delete window.affirm;
   } catch {
-    window.affirm = undefined;
+    window.affirm =
+      undefined;
   }
 
   try {
-    delete window._affirm_config;
+    delete window
+      ._affirm_config;
   } catch {
-    window._affirm_config = undefined;
+    window._affirm_config =
+      undefined;
   }
+}
+
+function resetLoaderState() {
+  loading = null;
+  loadedScriptSrc = null;
+  loadedPublicKey = null;
+}
+
+function cleanupFailedLoad(
+  scriptSrc: string
+) {
+  removeExistingAffirmScript(
+    scriptSrc
+  );
+
+  resetAffirmGlobals();
+  resetLoaderState();
 }
 
 export function loadAffirm(
   publicKey: string,
-  env: "prod" | "sandbox" | "production" | string = "prod"
+  env:
+    | "prod"
+    | "sandbox"
+    | "production"
+    | string = "prod"
 ): Promise<void> {
   if (!canUseDom()) {
-    return Promise.reject(new Error("No DOM available"));
+    return Promise.reject(
+      new Error(
+        "No DOM available"
+      )
+    );
   }
 
-  const trimmedKey = String(publicKey || "").trim();
+  const trimmedKey =
+    String(publicKey || "")
+      .trim();
 
   if (!trimmedKey) {
-    return Promise.reject(new Error("Missing Affirm public key"));
+    return Promise.reject(
+      new Error(
+        "Missing Affirm public key"
+      )
+    );
   }
 
-  const normalizedEnv = normalizeEnv(env);
-  const scriptSrc = getAffirmScriptUrl(normalizedEnv);
+  const normalizedEnv =
+    normalizeEnv(env);
 
-  if (window.affirm?.checkout && sameConfig(scriptSrc, trimmedKey)) {
+  const scriptSrc =
+    getAffirmScriptUrl(
+      normalizedEnv
+    );
+
+  if (
+    isAffirmReady() &&
+    sameConfig(
+      scriptSrc,
+      trimmedKey
+    )
+  ) {
     return Promise.resolve();
   }
 
-  if (loading && sameConfig(scriptSrc, trimmedKey)) {
+  if (
+    loading &&
+    sameConfig(
+      scriptSrc,
+      trimmedKey
+    )
+  ) {
     return loading;
   }
 
+  const existingConfig =
+    window._affirm_config;
+
+  const existingConfigKey =
+    String(
+      existingConfig
+        ?.public_api_key ||
+        ""
+    ).trim();
+
+  const existingConfigScript =
+    String(
+      existingConfig?.script ||
+        ""
+    ).trim();
+
   const configChanged =
-    (loadedScriptSrc && loadedScriptSrc !== scriptSrc) ||
-    (loadedPublicKey && loadedPublicKey !== trimmedKey);
+    Boolean(
+      loadedScriptSrc &&
+        loadedScriptSrc !==
+          scriptSrc
+    ) ||
+    Boolean(
+      loadedPublicKey &&
+        loadedPublicKey !==
+          trimmedKey
+    ) ||
+    Boolean(
+      existingConfigKey &&
+        existingConfigKey !==
+          trimmedKey
+    ) ||
+    Boolean(
+      existingConfigScript &&
+        existingConfigScript !==
+          scriptSrc
+    );
 
   if (configChanged) {
-    loading = null;
-    removeExistingAffirmScript(loadedScriptSrc);
-    resetAffirmGlobals();
-  }
-
-  loadedScriptSrc = scriptSrc;
-  loadedPublicKey = trimmedKey;
-
-  loading = new Promise<void>((resolve, reject) => {
-    window._affirm_config = {
-      public_api_key: trimmedKey,
-      script: scriptSrc,
-    };
-
-    const existing = Array.from(document.querySelectorAll("script")).find(
-      (el) => (el as HTMLScriptElement).src === scriptSrc
-    ) as HTMLScriptElement | undefined;
-
-    const finishOk = () => {
-      waitForAffirmReady()
-        .then(() => resolve())
-        .catch((err) => {
-          loading = null;
-          reject(err);
-        });
-    };
-
-    const finishErr = (msg: string) => {
-      loading = null;
-      reject(new Error(msg));
-    };
-
-    if (existing) {
-      if (window.affirm?.checkout) {
-        resolve();
-        return;
-      }
-
-      finishOk();
-      return;
+    if (loadedScriptSrc) {
+      removeExistingAffirmScript(
+        loadedScriptSrc
+      );
     }
 
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = scriptSrc;
+    if (
+      existingConfigScript &&
+      existingConfigScript !==
+        loadedScriptSrc
+    ) {
+      removeExistingAffirmScript(
+        existingConfigScript
+      );
+    }
 
-    s.onload = () => finishOk();
-    s.onerror = () => finishErr("Failed to load Affirm script");
+    removeExistingAffirmScript(
+      scriptSrc
+    );
 
-    document.head.appendChild(s);
-  });
+    resetAffirmGlobals();
+    resetLoaderState();
+  }
+
+  loadedScriptSrc =
+    scriptSrc;
+
+  loadedPublicKey =
+    trimmedKey;
+
+  loading =
+    new Promise<void>(
+      (resolve, reject) => {
+        window._affirm_config = {
+          public_api_key:
+            trimmedKey,
+
+          script:
+            scriptSrc,
+        };
+
+        const existing =
+          findAffirmScript(
+            scriptSrc
+          );
+
+        const finishOk =
+          async () => {
+            try {
+              await waitForAffirmReady();
+
+              resolve();
+            } catch (
+              error: unknown
+            ) {
+              cleanupFailedLoad(
+                scriptSrc
+              );
+
+              reject(
+                error instanceof
+                  Error
+                  ? error
+                  : new Error(
+                      "Affirm failed to initialize"
+                    )
+              );
+            }
+          };
+
+        const finishError = (
+          message: string
+        ) => {
+          cleanupFailedLoad(
+            scriptSrc
+          );
+
+          reject(
+            new Error(message)
+          );
+        };
+
+        if (existing) {
+          if (
+            isAffirmReady()
+          ) {
+            resolve();
+            return;
+          }
+
+          void finishOk();
+          return;
+        }
+
+        const script =
+          document.createElement(
+            "script"
+          );
+
+        script.async = true;
+        script.src = scriptSrc;
+
+        script.dataset.voltrideAffirm =
+          "true";
+
+        script.onload = () => {
+          void finishOk();
+        };
+
+        script.onerror = () => {
+          finishError(
+            "Failed to load Affirm script"
+          );
+        };
+
+        document.head.appendChild(
+          script
+        );
+      }
+    );
 
   return loading;
 }

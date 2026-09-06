@@ -1,44 +1,193 @@
 // src/components/ProductCard.tsx
-import { useMemo, useState } from "react";
-import { Product } from "../data/products";
+
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import { useCart } from "../context/CartContext";
+import type { Product } from "../data/products";
+
+const FALLBACK_IMAGE = "/fallback.png";
+const ADDED_FEEDBACK_MS = 1_200;
 
 function safeSrc(src?: string) {
-  return encodeURI(String(src || "").trim() || "/fallback.png");
+  const value = String(src || "").trim();
+
+  if (!value) {
+    return FALLBACK_IMAGE;
+  }
+
+  try {
+    return encodeURI(value);
+  } catch {
+    return FALLBACK_IMAGE;
+  }
 }
 
-function safeText(value: unknown, fallback = "") {
-  const text = String(value ?? "").trim();
+function safeText(
+  value: unknown,
+  fallback = ""
+) {
+  const text = String(
+    value ?? ""
+  ).trim();
+
   return text || fallback;
 }
 
 function formatUsd(value: number) {
+  const numericValue = Number(value);
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-  }).format(Number(value) || 0);
+  }).format(
+    Number.isFinite(numericValue)
+      ? Math.max(0, numericValue)
+      : 0
+  );
 }
 
-function categoryLabel(category: Product["category"]) {
-  if (category === "scooters") return "Scooter";
-  if (category === "ebikes") return "E-Bike";
+function categoryLabel(
+  category: Product["category"]
+) {
+  if (category === "scooters") {
+    return "Scooter";
+  }
+
+  if (category === "ebikes") {
+    return "E-Bike";
+  }
+
   return "Audio";
 }
 
-export default function ProductCard({ p }: { p: Product }) {
+function handleImageError(
+  event: React.SyntheticEvent<
+    HTMLImageElement
+  >
+) {
+  const image =
+    event.currentTarget;
+
+  const currentSrc =
+    image.getAttribute("src") || "";
+
+  if (
+    currentSrc.endsWith(
+      FALLBACK_IMAGE
+    )
+  ) {
+    return;
+  }
+
+  image.onerror = null;
+  image.src = FALLBACK_IMAGE;
+}
+
+export default function ProductCard({
+  p,
+}: {
+  p: Product;
+}) {
   const { addItem } = useCart();
-  const [activeImage, setActiveImage] = useState(p.image);
-  const [added, setAdded] = useState(false);
+
+  const [activeImage, setActiveImage] =
+    useState(
+      safeText(
+        p.image,
+        FALLBACK_IMAGE
+      )
+    );
+
+  const [added, setAdded] =
+    useState(false);
+
+  const addedTimerRef =
+    useRef<number | null>(null);
 
   const images = useMemo(() => {
-    const list = [p.image, ...(p.gallery || [])].filter(Boolean);
-    return Array.from(new Set(list));
+    const candidates = [
+      p.image,
+      ...(Array.isArray(p.gallery)
+        ? p.gallery
+        : []),
+    ];
+
+    const normalized =
+      candidates
+        .map((image) =>
+          safeText(image)
+        )
+        .filter(
+          (image): image is string =>
+            Boolean(image)
+        );
+
+    return Array.from(
+      new Set(normalized)
+    );
   }, [p.image, p.gallery]);
 
-  const label = categoryLabel(p.category);
-  const price = Number(p.price) || 0;
-  const title = safeText(p.name, "Unnamed product");
-  const image = safeText(p.image);
+  useEffect(() => {
+    const primaryImage =
+      safeText(
+        p.image,
+        FALLBACK_IMAGE
+      );
+
+    setActiveImage(
+      images.includes(primaryImage)
+        ? primaryImage
+        : images[0] ||
+            FALLBACK_IMAGE
+    );
+  }, [p.image, images]);
+
+  useEffect(() => {
+    return () => {
+      if (
+        typeof window !==
+          "undefined" &&
+        addedTimerRef.current !==
+          null
+      ) {
+        window.clearTimeout(
+          addedTimerRef.current
+        );
+      }
+    };
+  }, []);
+
+  const label = categoryLabel(
+    p.category
+  );
+
+  const numericPrice =
+    Number(p.price);
+
+  const price =
+    Number.isFinite(numericPrice)
+      ? Math.max(
+          0,
+          numericPrice
+        )
+      : 0;
+
+  const title = safeText(
+    p.name,
+    "Unnamed product"
+  );
+
+  const image = safeText(
+    p.image
+  );
+
+  const description =
+    safeText(p.description);
 
   function handleAddToCart() {
     addItem({
@@ -52,12 +201,44 @@ export default function ProductCard({ p }: { p: Product }) {
     });
 
     setAdded(true);
-    window.setTimeout(() => setAdded(false), 1200);
+
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    if (
+      addedTimerRef.current !==
+      null
+    ) {
+      window.clearTimeout(
+        addedTimerRef.current
+      );
+    }
+
+    addedTimerRef.current =
+      window.setTimeout(() => {
+        setAdded(false);
+        addedTimerRef.current =
+          null;
+      }, ADDED_FEEDBACK_MS);
   }
 
   function handleAsk() {
-    const el = document.getElementById("contact");
-    el?.scrollIntoView({ behavior: "smooth" });
+    if (
+      typeof document ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    document
+      .getElementById("contact")
+      ?.scrollIntoView({
+        behavior: "smooth",
+      });
   }
 
   return (
@@ -68,16 +249,22 @@ export default function ProductCard({ p }: { p: Product }) {
           src={safeSrc(activeImage)}
           alt={title}
           loading="lazy"
-          onError={(e) => {
-            const target = e.currentTarget as HTMLImageElement;
-            if (target.src.endsWith("/fallback.png")) return;
-            target.src = "/fallback.png";
-          }}
+          onError={
+            handleImageError
+          }
         />
 
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-black/30" />
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100">
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-black/30"
+          aria-hidden="true"
+        />
+
+        <div
+          className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100"
+          aria-hidden="true"
+        >
           <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-lime-300/20 blur-3xl" />
+
           <div className="absolute -bottom-16 -left-16 h-44 w-44 rounded-full bg-fuchsia-400/20 blur-3xl" />
         </div>
 
@@ -98,87 +285,158 @@ export default function ProductCard({ p }: { p: Product }) {
             <div className="truncate text-lg font-black text-white drop-shadow">
               {title}
             </div>
+
             <div className="truncate text-xs font-medium text-white/65">
-              {safeText(p.brand, "Brand")} • {safeText(p.model, "Model")} •{" "}
-              {safeText(p.year, "-")}
+              {safeText(
+                p.brand,
+                "Brand"
+              )}{" "}
+              •{" "}
+              {safeText(
+                p.model,
+                "Model"
+              )}{" "}
+              •{" "}
+              {safeText(
+                p.year,
+                "-"
+              )}
             </div>
           </div>
 
           <div className="shrink-0 rounded-2xl border border-white/10 bg-black/35 px-3 py-2 text-right backdrop-blur-md">
-            <div className="text-sm font-black text-white">{formatUsd(price)}</div>
+            <div className="text-sm font-black text-white">
+              {formatUsd(price)}
+            </div>
+
             <div className="text-[10px] uppercase tracking-wide text-white/50">
-              {safeText(p.condition, "Available")}
+              {safeText(
+                p.condition,
+                "Available"
+              )}
             </div>
           </div>
         </div>
 
         {images.length > 1 ? (
-          <div className="absolute bottom-[86px] left-4 right-4 flex gap-2 overflow-x-auto pb-1">
-            {images.slice(0, 5).map((img) => {
-              const selected = activeImage === img;
+          <div
+            className="absolute bottom-[86px] left-4 right-4 flex gap-2 overflow-x-auto pb-1"
+            aria-label={`${title} images`}
+          >
+            {images
+              .slice(0, 5)
+              .map(
+                (
+                  imageSrc,
+                  index
+                ) => {
+                  const selected =
+                    activeImage ===
+                    imageSrc;
 
-              return (
-                <button
-                  key={img}
-                  type="button"
-                  onClick={() => setActiveImage(img)}
-                  className={`h-12 w-12 shrink-0 overflow-hidden rounded-2xl border bg-black/40 p-0.5 transition hover:scale-105 ${
-                    selected
-                      ? "border-lime-300 shadow-[0_0_0_2px_rgba(190,242,100,.2)]"
-                      : "border-white/15 hover:border-white/45"
-                  }`}
-                  aria-label={`View ${title} image`}
-                >
-                  <img
-                    src={safeSrc(img)}
-                    alt=""
-                    className="h-full w-full rounded-[14px] object-cover"
-                    loading="lazy"
-                  />
-                </button>
-              );
-            })}
+                  return (
+                    <button
+                      key={imageSrc}
+                      type="button"
+                      onClick={() =>
+                        setActiveImage(
+                          imageSrc
+                        )
+                      }
+                      className={`h-12 w-12 shrink-0 overflow-hidden rounded-2xl border bg-black/40 p-0.5 transition hover:scale-105 ${
+                        selected
+                          ? "border-lime-300 shadow-[0_0_0_2px_rgba(190,242,100,.2)]"
+                          : "border-white/15 hover:border-white/45"
+                      }`}
+                      aria-label={`View ${title} image ${
+                        index +
+                        1
+                      }`}
+                      aria-pressed={
+                        selected
+                      }
+                    >
+                      <img
+                        src={safeSrc(
+                          imageSrc
+                        )}
+                        alt=""
+                        className="h-full w-full rounded-[14px] object-cover"
+                        loading="lazy"
+                        onError={
+                          handleImageError
+                        }
+                      />
+                    </button>
+                  );
+                }
+              )}
           </div>
         ) : null}
       </div>
 
       <div className="p-5">
-        {safeText(p.description) ? (
+        {description ? (
           <p className="line-clamp-3 text-sm leading-relaxed text-[var(--muted)]">
-            {safeText(p.description)}
+            {description}
           </p>
         ) : (
           <p className="text-sm leading-relaxed text-[var(--muted)]">
-            Ask us for availability, pickup options and current product details.
+            Ask us for
+            availability, pickup
+            options, and current
+            product details.
           </p>
         )}
 
-        {p.features?.length ? (
+        {Array.isArray(
+          p.features
+        ) &&
+        p.features.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
-            {p.features.slice(0, 3).map((feature) => (
-              <span
-                key={feature}
-                className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-white/60 transition group-hover:border-white/15 group-hover:text-white/75"
-              >
-                {feature}
-              </span>
-            ))}
+            {p.features
+              .slice(0, 3)
+              .map((feature) => {
+                const text =
+                  safeText(
+                    feature
+                  );
+
+                if (!text) {
+                  return null;
+                }
+
+                return (
+                  <span
+                    key={text}
+                    className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-white/60 transition group-hover:border-white/15 group-hover:text-white/75"
+                  >
+                    {text}
+                  </span>
+                );
+              })}
           </div>
         ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
             className="rounded-2xl bg-gradient-to-r from-fuchsia-500 to-lime-300 px-4 py-3 text-sm font-black text-black transition hover:brightness-110 active:scale-[.98]"
-            onClick={handleAddToCart}
+            onClick={
+              handleAddToCart
+            }
             type="button"
+            aria-live="polite"
           >
-            {added ? "Added" : "Add to cart"}
+            {added
+              ? "Added"
+              : "Add to cart"}
           </button>
 
           <button
             className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white/85 transition hover:bg-white/[0.1] hover:text-white active:scale-[.98]"
             onClick={handleAsk}
             type="button"
+            aria-label={`Ask about ${title}`}
           >
             Ask about it
           </button>

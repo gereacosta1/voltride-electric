@@ -1,17 +1,19 @@
 // src/context/CartContext.tsx
+
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
-  useEffect,
   type ReactNode,
 } from "react";
 
 export type CartItem = {
   id: string | number;
   name: string;
-  price: number; // USD
+  price: number;
   qty: number;
   sku?: string;
   image?: string;
@@ -25,138 +27,425 @@ type CartCtx = {
   close: () => void;
   isOpen: boolean;
   addItem: (item: CartItem) => void;
-  removeItem: (id: string | number) => void;
+  removeItem: (
+    id: string | number
+  ) => void;
   clear: () => void;
-  setQty: (id: string | number, qty: number) => void;
+  setQty: (
+    id: string | number,
+    qty: number
+  ) => void;
 };
 
-const Ctx = createContext<CartCtx | null>(null);
+type UnknownRecord =
+  Record<string, unknown>;
 
-const STORAGE_KEY = "voltride_cart_v1";
+const Ctx =
+  createContext<CartCtx | null>(
+    null
+  );
 
-function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+const STORAGE_KEY =
+  "voltride_cart_v1";
+
+function getStorage(): Storage | null {
+  if (
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
-function normalizeItem(it: any): CartItem | null {
-  if (!it || typeof it !== "object") return null;
+function isRecord(
+  value: unknown
+): value is UnknownRecord {
+  return (
+    typeof value === "object" &&
+    value !== null
+  );
+}
 
-  const id = it.id;
-  if (id === undefined || id === null) return null;
+function normalizeId(
+  value: unknown
+): string | number | null {
+  if (
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
+    return value;
+  }
 
-  const name = String(it.name ?? "").trim();
-  if (!name) return null;
+  return null;
+}
 
-  const price = Number(it.price);
-  const qty = Number(it.qty);
+function normalizePrice(
+  value: unknown
+) {
+  const price = Number(value);
+
+  if (!Number.isFinite(price)) {
+    return 0;
+  }
+
+  return Math.max(0, price);
+}
+
+function normalizeQuantity(
+  value: unknown
+) {
+  const quantity = Number(value);
+
+  if (!Number.isFinite(quantity)) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(quantity)
+  );
+}
+
+function normalizeOptionalString(
+  value: unknown
+): string | undefined {
+  if (
+    typeof value !== "string"
+  ) {
+    return undefined;
+  }
+
+  const normalized =
+    value.trim();
+
+  return normalized || undefined;
+}
+
+function normalizeItem(
+  item: unknown
+): CartItem | null {
+  if (!isRecord(item)) {
+    return null;
+  }
+
+  const id = normalizeId(
+    item.id
+  );
+
+  if (id === null) {
+    return null;
+  }
+
+  const name =
+    typeof item.name === "string"
+      ? item.name.trim()
+      : "";
+
+  if (!name) {
+    return null;
+  }
 
   return {
     id,
     name,
-    price: Number.isFinite(price) ? price : 0,
-    qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
-    sku: it.sku ? String(it.sku) : undefined,
-    image: it.image ? String(it.image) : undefined,
-    url: it.url ? String(it.url) : undefined,
+
+    price: normalizePrice(
+      item.price
+    ),
+
+    qty: normalizeQuantity(
+      item.qty
+    ),
+
+    sku: normalizeOptionalString(
+      item.sku
+    ),
+
+    image:
+      normalizeOptionalString(
+        item.image
+      ),
+
+    url: normalizeOptionalString(
+      item.url
+    ),
   };
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+function normalizeStoredItems(
+  value: unknown
+): CartItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.reduce<CartItem[]>(
+    (result, item) => {
+      const normalized =
+        normalizeItem(item);
+
+      if (normalized) {
+        result.push(normalized);
+      }
+
+      return result;
+    },
+    []
+  );
+}
+
+export function CartProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [items, setItems] =
+    useState<CartItem[]>([]);
+
+  const [isOpen, setIsOpen] =
+    useState(false);
+
+  const [hydrated, setHydrated] =
+    useState(false);
 
   useEffect(() => {
-    if (!canUseStorage()) return;
+    const storage = getStorage();
+
+    if (!storage) {
+      setHydrated(true);
+      return;
+    }
 
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      const raw =
+        storage.getItem(
+          STORAGE_KEY
+        );
 
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return;
+      if (!raw) {
+        return;
+      }
 
-      const normalized = parsed
-        .map(normalizeItem)
-        .filter(Boolean) as CartItem[];
+      const parsed: unknown =
+        JSON.parse(raw);
 
-      setItems(normalized);
+      setItems(
+        normalizeStoredItems(
+          parsed
+        )
+      );
     } catch {
-      // ignore corrupted storage
+      // Ignore corrupted or inaccessible storage.
+    } finally {
+      setHydrated(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!canUseStorage()) return;
+    if (!hydrated) {
+      return;
+    }
+
+    const storage =
+      getStorage();
+
+    if (!storage) {
+      return;
+    }
 
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      storage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(items)
+      );
     } catch {
-      // ignore storage write errors
+      // Ignore storage write errors.
     }
-  }, [items]);
+  }, [items, hydrated]);
 
-  const totalUSD = useMemo(() => {
-    return items.reduce(
-      (acc, it) => acc + (Number(it.price) || 0) * (Number(it.qty) || 0),
-      0
-    );
-  }, [items]);
+  const totalUSD =
+    useMemo(() => {
+      return items.reduce(
+        (total, item) =>
+          total +
+          normalizePrice(
+            item.price
+          ) *
+            normalizeQuantity(
+              item.qty
+            ),
+        0
+      );
+    }, [items]);
 
-  const api = useMemo<CartCtx>(
-    () => ({
-      items,
-      totalUSD,
-      isOpen,
-      open: () => setIsOpen(true),
-      close: () => setIsOpen(false),
+  const open = useCallback(
+    () => {
+      setIsOpen(true);
+    },
+    []
+  );
 
-      addItem: (next) => {
-        const normalized = normalizeItem(next);
-        if (!normalized) return;
+  const close = useCallback(
+    () => {
+      setIsOpen(false);
+    },
+    []
+  );
 
-        const nextQty = Math.max(1, Number(normalized.qty) || 1);
-        const nextPrice = Number(normalized.price) || 0;
+  const addItem =
+    useCallback(
+      (item: CartItem) => {
+        const normalized =
+          normalizeItem(item);
 
-        setItems((prev) => {
-          const idx = prev.findIndex((p) => p.id === normalized.id);
+        if (!normalized) {
+          return;
+        }
 
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = {
-              ...copy[idx],
-              qty: Math.max(1, Number(copy[idx].qty) || 1) + nextQty,
-              price: nextPrice,
+        setItems(
+          (previousItems) => {
+            const index =
+              previousItems.findIndex(
+                (existingItem) =>
+                  existingItem.id ===
+                  normalized.id
+              );
+
+            if (index < 0) {
+              return [
+                ...previousItems,
+                normalized,
+              ];
+            }
+
+            const nextItems = [
+              ...previousItems,
+            ];
+
+            const existingItem =
+              nextItems[index];
+
+            nextItems[index] = {
+              ...existingItem,
+              ...normalized,
+
+              qty:
+                normalizeQuantity(
+                  existingItem.qty
+                ) +
+                normalizeQuantity(
+                  normalized.qty
+                ),
             };
-            return copy;
-          }
 
-          return [...prev, { ...normalized, price: nextPrice, qty: nextQty }];
-        });
+            return nextItems;
+          }
+        );
 
         setIsOpen(true);
       },
+      []
+    );
 
-      removeItem: (id) => {
-        setItems((prev) => prev.filter((p) => p.id !== id));
+  const removeItem =
+    useCallback(
+      (
+        id:
+          | string
+          | number
+      ) => {
+        setItems(
+          (previousItems) =>
+            previousItems.filter(
+              (item) =>
+                item.id !== id
+            )
+        );
       },
+      []
+    );
 
-      clear: () => {
-        setItems([]);
-      },
-
-      setQty: (id, qty) => {
-        const q = Math.max(1, Number(qty) || 1);
-        setItems((prev) => prev.map((p) => (p.id === id ? { ...p, qty: q } : p)));
-      },
-    }),
-    [items, totalUSD, isOpen]
+  const clear = useCallback(
+    () => {
+      setItems([]);
+    },
+    []
   );
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
+  const setQty =
+    useCallback(
+      (
+        id:
+          | string
+          | number,
+        qty: number
+      ) => {
+        const nextQuantity =
+          normalizeQuantity(qty);
+
+        setItems(
+          (previousItems) =>
+            previousItems.map(
+              (item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      qty: nextQuantity,
+                    }
+                  : item
+            )
+        );
+      },
+      []
+    );
+
+  const api =
+    useMemo<CartCtx>(
+      () => ({
+        items,
+        totalUSD,
+        isOpen,
+        open,
+        close,
+        addItem,
+        removeItem,
+        clear,
+        setQty,
+      }),
+      [
+        items,
+        totalUSD,
+        isOpen,
+        open,
+        close,
+        addItem,
+        removeItem,
+        clear,
+        setQty,
+      ]
+    );
+
+  return (
+    <Ctx.Provider value={api}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useCart() {
-  const v = useContext(Ctx);
-  if (!v) throw new Error("useCart must be used within CartProvider");
-  return v;
+  const context =
+    useContext(Ctx);
+
+  if (!context) {
+    throw new Error(
+      "useCart must be used within CartProvider"
+    );
+  }
+
+  return context;
 }
